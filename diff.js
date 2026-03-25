@@ -217,7 +217,7 @@ function patch(patches) {
 
       // ── 'remove': 기존 요소를 화면에서 제거하기 ───────────────────
       case 'remove': {
-        // el이 부모가 있을 때만 제거해 (안전 체크)
+        // el이 부모가 있을 때만 제거. 왜 ? JS내장함수인 removeChild()때문에. 부모야, 네 자식을 제거해. 그러므로 부모가 없을때 제거하면 오류가 뜸
         if (patch.el && patch.el.parentNode) {
           patch.el.parentNode.removeChild(patch.el);
           console.log('DOM 삭제:', patch.el);
