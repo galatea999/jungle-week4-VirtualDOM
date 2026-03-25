@@ -13,9 +13,10 @@
  * 두 VNode를 비교해 patches 배열 반환
  * @param {VNode | string | null} oldNode - 이전 상태의 가상 노드
  *  * ↑태그   ↑타입                   ↑이름     ↑설명
-  parameter :  이 함수의 매개변수다. { 들어올 수 있는 타입들. } 
+  parameter :  이 함수의 매개변수다. { 들어올 수 있는 타입들. }
  * @param {VNode | string | null} newNode - 새로운 상태의 가상 노드
  * @param {Node} parentEl - 실제 DOM 부모 노드
+ * @param {Node | null} existingEl - oldNode에 대응하는 실제 DOM 노드 (없으면 null)
  * @returns {Array} patches
  *
  * 처리해야 할 5가지 케이스:
@@ -25,16 +26,25 @@
  *   4. 텍스트 다름   → text
  *   5. props 다름    → props  (같은 타입이면 자식도 재귀 탐색)
  */
-function diff(oldNode, newNode, parentEl) {
+function diff(oldNode, newNode, parentEl, existingEl) {
   // patches는 "무엇을 바꿔야 하나?"를 기록해두는 메모 목록이야.
   // 나중에 patch() 함수가 이 목록을 보고 실제 화면을 바꿔줘.
   const patches = [];
+
+  // ── 예외 케이스: 이전/새 노드가 둘 다 없음 → 아무것도 하지 않음 ─────
+  // 예) 빈 화면에 대해 같은 빈 상태를 다시 diff 하면 패치가 없어야 해.
+  if (
+    (oldNode === null || oldNode === undefined) &&
+    (newNode === null || newNode === undefined)
+  ) {
+    return patches;
+  }
 
   // ── 케이스 1: 이전 노드가 없음 → 새로 만들어야 함 ──────────────────
   // 예) 처음에 아무것도 없다가 <div>가 생겼을 때
   if (oldNode === null || oldNode === undefined) {
     patches.push({
-      type: 'create',   // "새로 만들어!" 라는 명령 종류
+      type: 'create',     // "새로 만들어!" 라는 명령 종류
       parentEl: parentEl, // 어디에 붙일지 (부모 요소)
       vNode: newNode,     // 어떤 모양으로 만들지 (새 VNode)
     });
@@ -42,15 +52,19 @@ function diff(oldNode, newNode, parentEl) {
     return patches;
   }
 
+  // ── 실제 DOM 요소 확정 ────────────────────────────────────────────
+  // existingEl이 직접 넘어왔으면 그것을 쓰고,
+  // 없으면 parentEl의 첫 번째 자식으로 추정해.
+  // (버그 수정) 이전에는 항상 parentEl.firstChild를 썼는데,
+  // 자식이 여러 개일 때 i번째 자식이 아닌 첫 번째를 참조하는 버그가 있었음.
+  const el = existingEl !== undefined ? existingEl : parentEl.firstChild;
+
   // ── 케이스 2: 새 노드가 없음 → 기존 것을 지워야 함 ────────────────
   // 예) 화면에 있던 <p>가 사라져야 할 때
   if (newNode === null || newNode === undefined) {
-    // 부모 요소의 첫 번째 자식 실제 DOM을 찾아서 삭제 대상으로 기록
-    // (oldNode에 대응하는 실제 DOM은 parentEl의 첫 번째 자식이라고 가정)
-    const el = parentEl.firstChild;
     patches.push({
       type: 'remove', // "이거 지워!" 라는 명령 종류
-      el: el,         // 지울 실제 DOM 요소
+      el: el,         // 지울 실제 DOM 요소 (이제 i번째 자식을 정확히 가리킴)
     });
     return patches;
   }
@@ -63,11 +77,10 @@ function diff(oldNode, newNode, parentEl) {
   if (isOldText && isNewText) {
     // 케이스 4: 텍스트 내용이 달라진 경우
     if (oldNode !== newNode) {
-      const el = parentEl.firstChild; // 바꿀 텍스트 노드 (실제 DOM)
       patches.push({
-        type: 'text',    // "텍스트 내용 바꿔!" 라는 명령 종류
-        el: el,          // 바꿀 실제 텍스트 노드
-        value: newNode,  // 새로운 텍스트 내용
+        type: 'text',   // "텍스트 내용 바꿔!" 라는 명령 종류
+        el: el,         // 바꿀 실제 텍스트 노드 (이제 i번째 자식을 정확히 가리킴)
+        value: newNode, // 새로운 텍스트 내용
       });
     }
     // 텍스트가 같으면 아무것도 안 해도 돼 → patches는 빈 배열
@@ -77,10 +90,9 @@ function diff(oldNode, newNode, parentEl) {
   // ── 케이스 3: 한쪽은 텍스트, 한쪽은 엘리먼트 → 완전히 다른 종류 ──
   // 예) 'hello' 였다가 <div> 가 되거나, <div> 였다가 'hello' 가 된 경우
   if (isOldText !== isNewText) {
-    const el = parentEl.firstChild;
     patches.push({
       type: 'replace', // "통째로 교체해!" 라는 명령 종류
-      el: el,          // 교체될 기존 실제 DOM
+      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
       vNode: newNode,  // 교체할 새 VNode
     });
     return patches;
@@ -89,10 +101,9 @@ function diff(oldNode, newNode, parentEl) {
   // ── 케이스 3: 둘 다 엘리먼트인데 태그 종류가 다른 경우 ────────────
   // 예) <p> 였다가 <h2> 가 된 경우 → 통째로 바꿔야 함
   if (oldNode.type !== newNode.type) {
-    const el = parentEl.firstChild;
     patches.push({
       type: 'replace', // "통째로 교체해!" 라는 명령 종류
-      el: el,          // 교체될 기존 실제 DOM
+      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
       vNode: newNode,  // 교체할 새 VNode
     });
     return patches;
@@ -100,9 +111,6 @@ function diff(oldNode, newNode, parentEl) {
 
   // ── 여기까지 왔다면: 태그 종류가 같은 엘리먼트끼리 비교 ────────────
   // 예) <div class="old"> 와 <div class="new"> 처럼 태그는 같고 내용이 다른 경우
-
-  // parentEl의 첫 번째 자식이 oldNode에 해당하는 실제 DOM이야
-  const el = parentEl.firstChild;
 
   // ── 케이스 5: props(속성)가 달라진 경우 ────────────────────────────
   // props 란? class, id, style 같은 HTML 속성들이야.
@@ -133,18 +141,15 @@ function diff(oldNode, newNode, parentEl) {
     // i번째 새로운 자식 (없으면 null)
     const newChild = newChildren[i] !== undefined ? newChildren[i] : null;
 
-    // i번째 자식에 해당하는 실제 DOM (없으면 null)
+    // (버그 수정) i번째 실제 DOM 자식을 정확히 구해서 넘겨줘.
+    // 이전에는 이 값을 구하고도 diff에 넘기지 않아서 firstChild만 참조했었음.
     const childEl = el.childNodes[i] !== undefined ? el.childNodes[i] : null;
 
-    // create 케이스(oldChild가 null)일 때 parentEl로 el을 넘겨줘야 해
-    // 그래야 새 노드를 el(부모) 안에 붙일 수 있어
-    const childParentEl = el;
-
     // 자식에 대해 diff를 재귀 호출 → 자식의 패치 목록을 받아옴
-    const childPatches = diff(oldChild, newChild, childParentEl);
+    // childEl을 existingEl로 넘겨줘서 i번째 자식을 정확히 가리키게 함
+    const childPatches = diff(oldChild, newChild, el, childEl);
 
     // 자식의 패치 목록을 전체 패치 목록에 합쳐줘
-    // ...(스프레드 연산자)는 배열을 펼쳐서 합쳐주는 문법이야
     childPatches.forEach((patch) => patches.push(patch));
   }
 
@@ -329,22 +334,26 @@ function test_removePatch() {
   parentEl.appendChild(el);
 
   // when
-  const patches = diff(oldNode, newNode, parentEl);
+  // existingEl(el)을 직접 넘겨줘서 정확한 DOM 노드를 참조하게 함
+  const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
   console.assert(patches.length === 1, '패치가 1개여야 한다');
   console.assert(patches[0].type === 'remove', '패치 타입이 remove여야 한다');
+  console.assert(patches[0].el === el, '삭제 대상 el이 정확히 일치해야 한다');
 }
 
 // 테스트 3: 타입 다름 → replace 패치 생성
 function test_replacePatch() {
   // given
+  const el = document.createElement('p');
   const oldNode = { type: 'p', props: {}, children: ['이전'] };
   const newNode = { type: 'h2', props: {}, children: ['이후'] };
   const parentEl = document.createElement('div');
+  parentEl.appendChild(el);
 
   // when
-  const patches = diff(oldNode, newNode, parentEl);
+  const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
   console.assert(patches.length >= 1, '패치가 1개 이상이어야 한다');
@@ -355,12 +364,14 @@ function test_replacePatch() {
 // 테스트 4: 텍스트 노드 다름 → text 패치 생성
 function test_textPatch() {
   // given
+  const textEl = document.createTextNode('이전 텍스트');
   const oldNode = '이전 텍스트';
   const newNode = '새로운 텍스트';
   const parentEl = document.createElement('div');
+  parentEl.appendChild(textEl);
 
   // when
-  const patches = diff(oldNode, newNode, parentEl);
+  const patches = diff(oldNode, newNode, parentEl, textEl);
 
   // then
   console.assert(patches.length === 1, '패치가 1개여야 한다');
@@ -371,12 +382,15 @@ function test_textPatch() {
 // 테스트 5: props 다름 → props 패치 생성
 function test_propsPatch() {
   // given
+  const el = document.createElement('div');
+  el.setAttribute('class', 'old-class');
   const oldNode = { type: 'div', props: { class: 'old-class' }, children: [] };
   const newNode = { type: 'div', props: { class: 'new-class' }, children: [] };
   const parentEl = document.createElement('section');
+  parentEl.appendChild(el);
 
   // when
-  const patches = diff(oldNode, newNode, parentEl);
+  const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
   console.assert(patches.length >= 1, '패치가 1개 이상이어야 한다');
@@ -384,4 +398,16 @@ function test_propsPatch() {
   console.assert(propsPatch !== undefined, 'props 패치가 존재해야 한다');
   console.assert(propsPatch.oldProps.class === 'old-class', 'oldProps가 올바르게 전달돼야 한다');
   console.assert(propsPatch.newProps.class === 'new-class', 'newProps가 올바르게 전달돼야 한다');
+}
+
+// 테스트 6: oldNode/newNode 둘 다 없음 → 빈 패치 반환
+function test_emptyRootNoopPatch() {
+  // given
+  const parentEl = document.createElement('div');
+
+  // when
+  const patches = diff(null, null, parentEl);
+
+  // then
+  console.assert(patches.length === 0, '빈 루트 diff는 패치가 없어야 한다');
 }
