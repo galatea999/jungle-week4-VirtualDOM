@@ -9,9 +9,11 @@
 // diff()
 // ─────────────────────────────────────────────
 
-/**
+/** => 주석을 의미 : JS는 Python처럼 타입을 문법으로 강제할 수 없어서, JSDoc주석으로 이 변수엔 이런 타입이 들어와야해 를 사람과 에디터에게 알려주는 용도로 씀
  * 두 VNode를 비교해 patches 배열 반환
  * @param {VNode | string | null} oldNode - 이전 상태의 가상 노드
+ *  * ↑태그   ↑타입                   ↑이름     ↑설명
+  parameter :  이 함수의 매개변수다. { 들어올 수 있는 타입들. } 
  * @param {VNode | string | null} newNode - 새로운 상태의 가상 노드
  * @param {Node} parentEl - 실제 DOM 부모 노드
  * @returns {Array} patches
