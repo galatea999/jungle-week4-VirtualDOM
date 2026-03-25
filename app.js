@@ -38,7 +38,8 @@ function pushHistory(vNode, htmlText) {
   // htmlText는 textarea에 적혀 있던 원본 문자열 그대로 저장한다.
   const snapshot = {
     vNode: cloneVNode(vNode),
-    htmlText: htmlText
+    htmlText: htmlText,
+    gameState: getGameState()
   };
 
   // 사용자가 뒤로가기로 과거 상태로 이동한 뒤 새 Patch를 하면
@@ -284,9 +285,17 @@ function restoreHistory(targetIdx) {
     currentVNode = restoredVNode;
     historyIdx = targetIdx;
 
+    // 게임 상태도 해당 시점으로 복원
+    restoreGameState(restoredEntry.gameState);
+
     // textarea는 VNode 문자열화 결과가 아니라,
     // 가능하면 사용자가 그때 실제로 입력했던 htmlText를 그대로 복원한다.
     syncTestAreaFromHistory(restoredEntry);
+
+    // VDOM 트리 복원 (패치 내역은 비움)
+    updateVDomPanel(restoredVNode);
+    updatePatchPanel([]);
+
     renderHistory();
   } catch (error) {
     console.error('히스토리 복원 중 오류', error);
@@ -311,6 +320,213 @@ function syncTestAreaFromHistory(historyEntry) {
   syncTestArea(historyEntry ? historyEntry.vNode : null);
 }
 
+// span 헬퍼: parent에 className + text로 span 추가
+function appendSpan(parent, className, text) {
+  const span = document.createElement('span');
+  span.className = className;
+  span.textContent = text;
+  parent.appendChild(span);
+}
+
+// 들여쓰기 단위 (px)
+const VDOM_INDENT = 18;
+
+// 한 줄 DOM 요소 생성
+function makeLine(depth) {
+  const el = document.createElement('div');
+  el.className = 'vdom-line';
+  el.style.paddingLeft = (depth * VDOM_INDENT) + 'px';
+  return el;
+}
+
+// VDOM 트리를 JS 객체 형식으로 DOM 요소 재귀 빌드
+// 예시:
+//   {
+//     type: "div",
+//     props: { class: "card" },
+//     children: [
+//       "텍스트",
+//       { type: "p", props: {}, children: [...] }
+//     ]
+//   }
+function buildVDomTree(vNode, depth) {
+  const wrapper = document.createElement('div');
+
+  if (vNode === null || vNode === undefined) {
+    return wrapper;
+  }
+
+  // 텍스트 노드
+  if (typeof vNode === 'string') {
+    if (vNode.trim() === '') {
+      return wrapper;
+    }
+
+    const line = makeLine(depth);
+    appendSpan(line, 'vdom-string', '"' + vNode.trim() + '"');
+    appendSpan(line, 'vdom-punct', ',');
+    wrapper.appendChild(line);
+    return wrapper;
+  }
+
+  // 여는 중괄호 {
+  const openLine = makeLine(depth);
+  appendSpan(openLine, 'vdom-punct', '{');
+  wrapper.appendChild(openLine);
+
+  // type: "tagname",
+  const typeLine = makeLine(depth + 1);
+  appendSpan(typeLine, 'vdom-key', 'type');
+  appendSpan(typeLine, 'vdom-punct', ': ');
+  appendSpan(typeLine, 'vdom-string', '"' + vNode.type + '"');
+  appendSpan(typeLine, 'vdom-punct', ',');
+  wrapper.appendChild(typeLine);
+
+  // props: { key: "val" },
+  const propsLine = makeLine(depth + 1);
+  appendSpan(propsLine, 'vdom-key', 'props');
+  appendSpan(propsLine, 'vdom-punct', ': ');
+
+  const propEntries = Object.entries(vNode.props || {});
+  if (propEntries.length === 0) {
+    appendSpan(propsLine, 'vdom-punct', '{}');
+  } else {
+    appendSpan(propsLine, 'vdom-punct', '{ ');
+    propEntries.forEach(function (entry, i) {
+      const key = entry[0];
+      const val = entry[1];
+      appendSpan(propsLine, 'vdom-prop-key', key);
+      appendSpan(propsLine, 'vdom-punct', ': ');
+      appendSpan(propsLine, 'vdom-string', val === true ? 'true' : '"' + val + '"');
+      if (i < propEntries.length - 1) {
+        appendSpan(propsLine, 'vdom-punct', ', ');
+      }
+    });
+    appendSpan(propsLine, 'vdom-punct', ' }');
+  }
+  appendSpan(propsLine, 'vdom-punct', ',');
+  wrapper.appendChild(propsLine);
+
+  // children: [
+  const childrenLine = makeLine(depth + 1);
+  appendSpan(childrenLine, 'vdom-key', 'children');
+  appendSpan(childrenLine, 'vdom-punct', ': [');
+  wrapper.appendChild(childrenLine);
+
+  // 자식 재귀
+  const children = (vNode.children || []).filter(function (c) {
+    return typeof c !== 'string' || c.trim() !== '';
+  });
+
+  children.forEach(function (child) {
+    wrapper.appendChild(buildVDomTree(child, depth + 2));
+  });
+
+  // ]
+  const closeArrLine = makeLine(depth + 1);
+  appendSpan(closeArrLine, 'vdom-punct', ']');
+  wrapper.appendChild(closeArrLine);
+
+  // }
+  const closeLine = makeLine(depth);
+  appendSpan(closeLine, 'vdom-punct', depth > 0 ? '},' : '}');
+  wrapper.appendChild(closeLine);
+
+  return wrapper;
+}
+
+// VDOM 패널 갱신
+function updateVDomPanel(vNode) {
+  const area = document.getElementById('vdom-area');
+
+  if (!area) {
+    return;
+  }
+
+  while (area.firstChild) {
+    area.removeChild(area.firstChild);
+  }
+
+  if (!vNode) {
+    const empty = document.createElement('p');
+    empty.className = 'panel-empty';
+    empty.textContent = '(비어 있음)';
+    area.appendChild(empty);
+    return;
+  }
+
+  area.appendChild(buildVDomTree(vNode, 0));
+}
+
+// Patch 내역 패널 갱신
+function updatePatchPanel(patches) {
+  const area = document.getElementById('patch-area');
+
+  if (!area) {
+    return;
+  }
+
+  while (area.firstChild) {
+    area.removeChild(area.firstChild);
+  }
+
+  if (!patches || patches.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'panel-empty';
+    empty.textContent = 'HTML을 수정하고\nPATCH 버튼을 눌러보세요';
+    empty.style.whiteSpace = 'pre-line';
+    area.appendChild(empty);
+    return;
+  }
+
+  patches.forEach(function (p) {
+    const item = document.createElement('div');
+    item.className = 'patch-item patch-type-' + p.type;
+
+    const badge = document.createElement('span');
+    badge.className = 'patch-badge';
+    badge.textContent = p.type;
+    item.appendChild(badge);
+
+    const detail = document.createElement('span');
+    detail.className = 'patch-detail';
+
+    switch (p.type) {
+      case 'create':
+        detail.textContent = '<' + p.vNode.type + '>';
+        break;
+      case 'remove':
+        detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '>';
+        break;
+      case 'replace':
+        detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '> → <' + p.vNode.type + '>';
+        break;
+      case 'text':
+        detail.textContent = '"' + p.value + '"';
+        break;
+      case 'props': {
+        const allKeys = new Set([
+          ...Object.keys(p.oldProps || {}),
+          ...Object.keys(p.newProps || {})
+        ]);
+        const changed = [];
+        allKeys.forEach(function (key) {
+          if ((p.oldProps || {})[key] !== (p.newProps || {})[key]) {
+            changed.push(key);
+          }
+        });
+        detail.textContent = changed.join(', ');
+        break;
+      }
+      default:
+        detail.textContent = '';
+    }
+
+    item.appendChild(detail);
+    area.appendChild(item);
+  });
+}
+
 function initializeApp() {
   const testArea = document.getElementById('test-area');
 
@@ -318,10 +534,8 @@ function initializeApp() {
     return;
   }
 
-  // textarea가 비어 있는 상태로 시작하면 안내용 샘플 HTML을 넣는다.
-  if (!testArea.value.trim()) {
-    testArea.value = '<div class="card">\n  <h2>Virtual DOM</h2>\n  <p>여기를 수정하고 Patch를 눌러보세요.</p>\n</div>';
-  }
+  // 게임 초기 상태의 프로필 HTML을 테스트 영역에 넣는다.
+  testArea.value = initializeGame();
 
   try {
     // 첫 로드 시 textarea의 내용을 기준으로 초기 VNode를 만든다.
@@ -334,6 +548,10 @@ function initializeApp() {
     // 최초 상태도 history의 첫 항목으로 저장해 두면
     // 뒤로가기/앞으로가기 흐름이 일관되게 유지된다.
     pushHistory(currentVNode, testArea.value);
+
+    // VDOM 트리 초기 렌더링
+    updateVDomPanel(currentVNode);
+    updatePatchPanel([]);
   } catch (error) {
     console.error('초기 렌더링 중 오류', error);
   }
@@ -373,6 +591,11 @@ function onPatchClick() {
     // 다음 Patch에서 oldNode와 newNode 비교가 올바르게 이루어진다.
     currentVNode = cloneVNode(newVNode);
     pushHistory(currentVNode, testArea.value);
+
+    // VDOM 트리 + Patch 내역 갱신
+    updateVDomPanel(currentVNode);
+    updatePatchPanel(patches);
+
     renderHistory();
   } catch (error) {
     console.error('패치 적용 중 오류', error);
