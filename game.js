@@ -135,71 +135,67 @@ function getCurrentLevel() {
   return LEVELS[gameState.levelIdx];
 }
 
-// 게임 상태 기반 프로필 HTML 생성
-function generateProfileHTML() {
+// 게임 상태 기반 프로필 VNode 생성
+function generateProfileVNode() {
   const lvl = getCurrentLevel();
   const exp = gameState.exp;
 
-  // 기술 스택 li 목록
-  let skillsHtml = '';
-  lvl.skills.forEach((skill) => {
-    skillsHtml += '    <li>' + skill.name + ' ' + starsToString(skill.stars) + '</li>\n';
-  });
+  // 기술 스택 li VNode 목록
+  const skillItems = lvl.skills.map((skill) => ({
+    type: 'li',
+    props: {},
+    children: [skill.name + ' ' + starsToString(skill.stars)]
+  }));
 
-  // 프로젝트 li 목록
-  let projectsHtml = '';
+  const children = [
+    { type: 'h1', props: {}, children: ['김은재'] },
+    { type: 'h2', props: { class: 'level level-' + lvl.level }, children: [lvl.levelIcon + ' ' + lvl.levelName] },
+    { type: 'p', props: { class: 'career' }, children: ['경력 ' + lvl.career + '년차'] },
+    { type: 'p', props: { class: 'gold' }, children: ['💰 ' + gameState.gold + ' G'] },
+    { type: 'p', props: { class: 'hire-info' }, children: ['퇴직 보상: ' + lvl.hireReward + ' G'] },
+    {
+      type: 'div',
+      props: { class: 'exp-bar' },
+      children: [
+        { type: 'progress', props: { value: String(exp), max: String(lvl.maxExp) }, children: [] },
+        { type: 'span', props: {}, children: [exp + ' / ' + lvl.maxExp + ' EXP'] }
+      ]
+    },
+    { type: 'h3', props: {}, children: ['기술 스택'] },
+    { type: 'ul', props: { class: 'skills' }, children: skillItems }
+  ];
+
+  // 프로젝트
   if (lvl.projects.length > 0) {
-    projectsHtml += '  <h3>완성한 프로젝트</h3>\n';
-    projectsHtml += '  <ul class="projects">\n';
-    lvl.projects.forEach((proj) => {
-      projectsHtml += '    <li>' + proj + '</li>\n';
+    children.push({ type: 'h3', props: {}, children: ['완성한 프로젝트'] });
+    children.push({
+      type: 'ul',
+      props: { class: 'projects' },
+      children: lvl.projects.map((proj) => ({ type: 'li', props: {}, children: [proj] }))
     });
-    projectsHtml += '  </ul>\n';
   }
 
-  // 약점 li 목록
-  let weaknessesHtml = '';
+  // 약점
   if (lvl.weaknesses.length > 0) {
-    weaknessesHtml += '  <h3>약점</h3>\n';
-    weaknessesHtml += '  <ul class="weaknesses">\n';
-    lvl.weaknesses.forEach((w) => {
-      weaknessesHtml += '    <li class="bad">' + w + '</li>\n';
+    children.push({ type: 'h3', props: {}, children: ['약점'] });
+    children.push({
+      type: 'ul',
+      props: { class: 'weaknesses' },
+      children: lvl.weaknesses.map((w) => ({ type: 'li', props: { class: 'bad' }, children: [w] }))
     });
-    weaknessesHtml += '  </ul>\n';
   }
 
-  // 강점 li 목록
-  let strengthsHtml = '';
+  // 강점
   if (lvl.strengths.length > 0) {
-    strengthsHtml += '  <h3>강점</h3>\n';
-    strengthsHtml += '  <ul class="strengths">\n';
-    lvl.strengths.forEach((s) => {
-      strengthsHtml += '    <li class="good">' + s + '</li>\n';
+    children.push({ type: 'h3', props: {}, children: ['강점'] });
+    children.push({
+      type: 'ul',
+      props: { class: 'strengths' },
+      children: lvl.strengths.map((s) => ({ type: 'li', props: { class: 'good' }, children: [s] }))
     });
-    strengthsHtml += '  </ul>\n';
   }
 
-  let html = '';
-  html += '<div class="profile">\n';
-  html += '  <h1>김은재</h1>\n';
-  html += '  <h2 class="level level-' + lvl.level + '">' + lvl.levelIcon + ' ' + lvl.levelName + '</h2>\n';
-  html += '  <p class="career">경력 ' + lvl.career + '년차</p>\n';
-  html += '  <p class="gold">💰 ' + gameState.gold + ' G</p>\n';
-  html += '  <p class="hire-info">퇴직 보상: ' + lvl.hireReward + ' G</p>\n';
-  html += '  <div class="exp-bar">\n';
-  html += '    <progress value="' + exp + '" max="' + lvl.maxExp + '"></progress>\n';
-  html += '    <span>' + exp + ' / ' + lvl.maxExp + ' EXP</span>\n';
-  html += '  </div>\n';
-  html += '  <h3>기술 스택</h3>\n';
-  html += '  <ul class="skills">\n';
-  html += skillsHtml;
-  html += '  </ul>\n';
-  html += projectsHtml;
-  html += weaknessesHtml;
-  html += strengthsHtml;
-  html += '</div>';
-
-  return html;
+  return { type: 'div', props: { class: 'profile' }, children: children };
 }
 
 // 경험치 추가 + 레벨업 체크
@@ -328,6 +324,7 @@ function onHireClick() {
 }
 
 // 게임 상태를 테스트 영역에 반영
+// VNode 생성 → HTML 문자열 변환 → textarea 표시
 function updateTestAreaWithGameState() {
   const testArea = document.getElementById('test-area');
 
@@ -335,7 +332,9 @@ function updateTestAreaWithGameState() {
     return;
   }
 
-  testArea.value = generateProfileHTML();
+  // getHtmlStringFromVNode는 app.js에 정의 (런타임에 호출되므로 사용 가능)
+  // depth: 0 → 들여쓰기 적용한 pretty-print 출력
+  testArea.value = getHtmlStringFromVNode(generateProfileVNode(), 0);
 }
 
 // 게임 상태 스냅샷 반환 (히스토리 저장용)
@@ -359,6 +358,7 @@ function restoreGameState(snapshot) {
 }
 
 // 게임 초기화 (app.js의 initializeApp에서 호출)
+// VNode를 반환 → app.js가 createNode()로 real-area에 렌더링
 function initializeGame() {
   gameState = {
     levelIdx: 0,
@@ -366,5 +366,5 @@ function initializeGame() {
     gold: 100
   };
 
-  return generateProfileHTML();
+  return generateProfileVNode();
 }

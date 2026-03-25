@@ -118,8 +118,8 @@
       min-width: 0;
     }
 
-    /* VDOM이 더 길게, PATCH는 짧게 */
-    .panel-column .panel:first-child { flex: 3; }
+    /* VDOM이 더 길게, PATCH는 그 절반 */
+    .panel-column .panel:first-child { flex: 2; }
     .panel-column .panel:last-child  { flex: 1; }
 
     .panel-header {
@@ -188,12 +188,62 @@
     .vdom-punct     { color: #8b949e; }
     .vdom-text-line { color: #ffa657; white-space: nowrap; }
 
+    /* VDOM 변경 하이라이트 */
+    .vdom-line-changed {
+      background: rgba(210, 153, 34, 0.18);
+      border-left: 3px solid #d29922;
+      padding-left: 6px;
+      margin-left: -9px;
+    }
+    .vdom-line-added {
+      background: rgba(63, 185, 80, 0.15);
+      border-left: 3px solid #3fb950;
+      padding-left: 6px;
+      margin-left: -9px;
+    }
+
     /* ── 3. Patch 내역 ── */
     #patch-area {
+      font-size: 0.8rem;
+      height: 100%;
+    }
+
+    /* DIFF계획 vs 실제감지 두 컬럼 */
+    .patch-columns {
+      display: flex;
+      gap: 8px;
+      height: 100%;
+    }
+
+    .patch-col {
+      flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      font-size: 0.8rem;
+      gap: 4px;
+      min-width: 0;
+      overflow-y: auto;
+    }
+
+    .patch-col-header {
+      font-size: 0.7rem;
+      font-weight: bold;
+      letter-spacing: 0.08em;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      flex-shrink: 0;
+    }
+
+    .patch-col-header-plan {
+      background: rgba(88, 166, 255, 0.1);
+      color: #58a6ff;
+      border: 1px solid rgba(88, 166, 255, 0.25);
+    }
+
+    .patch-col-header-real {
+      background: rgba(63, 185, 80, 0.1);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.25);
     }
 
     .panel-empty {

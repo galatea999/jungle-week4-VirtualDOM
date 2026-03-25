@@ -16,7 +16,7 @@
   parameter :  이 함수의 매개변수다. { 들어올 수 있는 타입들. }
  * @param {VNode | string | null} newNode - 새로운 상태의 가상 노드
  * @param {Node} parentEl - 실제 DOM 부모 노드
- * @param {Node | null} existingEl - oldNode에 대응하는 실제 DOM 노드 (생략 시 parentEl.firstChild 사용)
+ * @param {Node | null} existingEl - oldNode에 대응하는 실제 DOM 노드 (없으면 null)
  * @returns {Array} patches
  *
  * 처리해야 할 5가지 케이스:
@@ -26,7 +26,7 @@
  *   4. 텍스트 다름   → text
  *   5. props 다름    → props  (같은 타입이면 자식도 재귀 탐색)
  */
-function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
+function diff(oldNode, newNode, parentEl, existingEl) {
   // patches는 "무엇을 바꿔야 하나?"를 기록해두는 메모 목록이야.
   // 나중에 patch() 함수가 이 목록을 보고 실제 화면을 바꿔줘.
   const patches = [];
@@ -52,12 +52,19 @@ function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
     return patches;
   }
 
+  // ── 실제 DOM 요소 확정 ────────────────────────────────────────────
+  // existingEl이 직접 넘어왔으면 그것을 쓰고,
+  // 없으면 parentEl의 첫 번째 자식으로 추정해.
+  // (버그 수정) 이전에는 항상 parentEl.firstChild를 썼는데,
+  // 자식이 여러 개일 때 i번째 자식이 아닌 첫 번째를 참조하는 버그가 있었음.
+  const el = existingEl !== undefined ? existingEl : parentEl.firstChild;
+
   // ── 케이스 2: 새 노드가 없음 → 기존 것을 지워야 함 ────────────────
   // 예) 화면에 있던 <p>가 사라져야 할 때
   if (newNode === null || newNode === undefined) {
     patches.push({
-      type: 'remove',     // "이거 지워!" 라는 명령 종류
-      el: existingEl,     // 지울 실제 DOM 요소 (i번째 자식을 정확히 가리킴)
+      type: 'remove', // "이거 지워!" 라는 명령 종류
+      el: el,         // 지울 실제 DOM 요소 (이제 i번째 자식을 정확히 가리킴)
     });
     return patches;
   }
@@ -71,9 +78,9 @@ function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
     // 케이스 4: 텍스트 내용이 달라진 경우
     if (oldNode !== newNode) {
       patches.push({
-        type: 'text',       // "텍스트 내용 바꿔!" 라는 명령 종류
-        el: existingEl,     // 바꿀 실제 텍스트 노드 (i번째 자식을 정확히 가리킴)
-        value: newNode,     // 새로운 텍스트 내용
+        type: 'text',   // "텍스트 내용 바꿔!" 라는 명령 종류
+        el: el,         // 바꿀 실제 텍스트 노드 (이제 i번째 자식을 정확히 가리킴)
+        value: newNode, // 새로운 텍스트 내용
       });
     }
     // 텍스트가 같으면 아무것도 안 해도 돼 → patches는 빈 배열
@@ -84,9 +91,9 @@ function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
   // 예) 'hello' 였다가 <div> 가 되거나, <div> 였다가 'hello' 가 된 경우
   if (isOldText !== isNewText) {
     patches.push({
-      type: 'replace',    // "통째로 교체해!" 라는 명령 종류
-      el: existingEl,     // 교체될 기존 실제 DOM (i번째 자식을 정확히 가리킴)
-      vNode: newNode,     // 교체할 새 VNode
+      type: 'replace', // "통째로 교체해!" 라는 명령 종류
+      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
+      vNode: newNode,  // 교체할 새 VNode
     });
     return patches;
   }
@@ -95,9 +102,9 @@ function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
   // 예) <p> 였다가 <h2> 가 된 경우 → 통째로 바꿔야 함
   if (oldNode.type !== newNode.type) {
     patches.push({
-      type: 'replace',    // "통째로 교체해!" 라는 명령 종류
-      el: existingEl,     // 교체될 기존 실제 DOM (i번째 자식을 정확히 가리킴)
-      vNode: newNode,     // 교체할 새 VNode
+      type: 'replace', // "통째로 교체해!" 라는 명령 종류
+      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
+      vNode: newNode,  // 교체할 새 VNode
     });
     return patches;
   }
@@ -112,38 +119,74 @@ function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
   if (hasPropsChanged) {
     patches.push({
       type: 'props',           // "속성 바꿔!" 라는 명령 종류
-      el: existingEl,          // 속성을 바꿀 실제 DOM 요소
+      el: el,                  // 속성을 바꿀 실제 DOM 요소
       oldProps: oldNode.props, // 이전 속성 목록
       newProps: newNode.props, // 새로운 속성 목록
     });
   }
 
-  // ── 자식들도 재귀적으로 비교 ──────────────────────────────────────
-  // 재귀란? 함수가 자기 자신을 다시 호출하는 것이야.
-  // 예) <div> 안에 <p> 가 있고, <p> 안에 텍스트가 있을 때
-  //     <div> 비교 → <p> 비교 → 텍스트 비교 순서로 점점 깊이 들어가는 거야.
+  // ── 자식들도 재귀적으로 비교 (key-prop 방식) ─────────────────────
+  // key가 있는 자식은 key로 매칭 → 위치가 달라도 같은 노드로 인식
+  // key가 없는 자식은 기존 인덱스 순서로 매칭
   const oldChildren = oldNode.children || [];
   const newChildren = newNode.children || [];
 
-  // 두 배열 중 더 긴 쪽의 길이만큼 반복해야 빠진 자식도 감지할 수 있어
-  const childCount = Math.max(oldChildren.length, newChildren.length);
+  // old 자식을 key → { child, domEl } 맵과 key 없는 목록으로 분리
+  const oldKeyMap = {};
+  const oldNoKeyList = [];
 
-  for (let i = 0; i < childCount; i++) {
-    // i번째 이전 자식 (없으면 null)
-    const oldChild = oldChildren[i] !== undefined ? oldChildren[i] : null;
-    // i번째 새로운 자식 (없으면 null)
-    const newChild = newChildren[i] !== undefined ? newChildren[i] : null;
+  oldChildren.forEach(function (child, i) {
+    const domEl = el && el.childNodes[i] !== undefined ? el.childNodes[i] : null;
+    const key = child && typeof child === 'object' && child.props && child.props.key;
+    if (key !== undefined) {
+      oldKeyMap[String(key)] = { child: child, domEl: domEl };
+    } else {
+      oldNoKeyList.push({ child: child, domEl: domEl });
+    }
+  });
 
-    // i번째 실제 DOM 자식을 정확히 구해서 넘겨줘.
-    // existingEl이 null이면 자식도 없으니 null로 처리해.
-    const childEl = existingEl && existingEl.childNodes[i] !== undefined ? existingEl.childNodes[i] : null;
+  let noKeyIdx = 0;
 
-    // 자식에 대해 diff를 재귀 호출 → 자식의 패치 목록을 받아옴
-    // childEl을 existingEl로 넘겨줘서 i번째 자식을 정확히 가리키게 함
-    const childPatches = diff(oldChild, newChild, existingEl, childEl);
+  // new 자식 순서 기준으로 old와 매칭하여 재귀 비교
+  newChildren.forEach(function (newChild) {
+    const key = newChild && typeof newChild === 'object' && newChild.props && newChild.props.key;
+    let matchedOld = null;
 
-    // 자식의 패치 목록을 전체 패치 목록에 합쳐줘
-    childPatches.forEach((patch) => patches.push(patch));
+    if (key !== undefined) {
+      // key가 있으면 key로 매칭
+      matchedOld = oldKeyMap[String(key)] || null;
+      if (matchedOld) {
+        delete oldKeyMap[String(key)];
+      }
+    } else {
+      // key가 없으면 순서(인덱스)로 매칭
+      matchedOld = noKeyIdx < oldNoKeyList.length ? oldNoKeyList[noKeyIdx++] : null;
+    }
+
+    if (matchedOld) {
+      // 매칭된 old 자식과 재귀 비교
+      const childPatches = diff(matchedOld.child, newChild, el, matchedOld.domEl);
+      childPatches.forEach(function (p) { patches.push(p); });
+    } else {
+      // 매칭 실패 → 새로 생성
+      patches.push({ type: 'create', parentEl: el || parentEl, vNode: newChild });
+    }
+  });
+
+  // 매칭되지 못한 old key 자식 → 제거
+  Object.keys(oldKeyMap).forEach(function (key) {
+    const domEl = oldKeyMap[key].domEl;
+    if (domEl) {
+      patches.push({ type: 'remove', el: domEl });
+    }
+  });
+
+  // 매칭되지 못한 old 인덱스 자식 → 제거
+  for (let i = noKeyIdx; i < oldNoKeyList.length; i++) {
+    const domEl = oldNoKeyList[i].domEl;
+    if (domEl) {
+      patches.push({ type: 'remove', el: domEl });
+    }
   }
 
   return patches;
@@ -217,7 +260,7 @@ function patch(patches) {
 
       // ── 'remove': 기존 요소를 화면에서 제거하기 ───────────────────
       case 'remove': {
-        // el이 부모가 있을 때만 제거. 왜 ? JS내장함수인 removeChild()때문에. 부모야, 네 자식을 제거해. 그러므로 부모가 없을때 제거하면 오류가 뜸
+        // el이 부모가 있을 때만 제거해 (안전 체크)
         if (patch.el && patch.el.parentNode) {
           patch.el.parentNode.removeChild(patch.el);
           console.log('DOM 삭제:', patch.el);

@@ -93,57 +93,61 @@ function isSameVNode(oldNode, newNode) {
   return JSON.stringify(oldNode) === JSON.stringify(newNode);
 }
 
-function getHtmlStringFromVNode(vNode) {
+// depth를 넘기면 들여쓰기 적용 (pretty-print), 생략하면 flat 출력
+function getHtmlStringFromVNode(vNode, depth) {
+  const isPretty = depth !== undefined;
+  const indent = isPretty ? '  '.repeat(depth) : '';
+
   // 비어 있는 상태는 빈 문자열로 본다.
   if (vNode === null || vNode === undefined) {
     return '';
   }
 
-  // 문자열 VNode는 텍스트 노드이므로 HTML 특수문자를 이스케이프해서 반환한다.
-  // 예) '<div>' 라는 텍스트가 있으면 실제 태그가 아니라 문자 그대로 보여야 하므로
-  // '&lt;div&gt;' 형태로 바꿔준다.
+  // 텍스트 노드: 들여쓰기 + 이스케이프
   if (typeof vNode === 'string') {
-    return escapeHtml(vNode);
+    const text = escapeHtml(vNode);
+    return isPretty ? indent + text : text;
   }
 
   // props 객체를 실제 HTML 속성 문자열로 바꾼다.
-  // 예) { class: 'card', disabled: true }
-  // -> 'class="card" disabled'
   const props = Object.entries(vNode.props || {})
     .map(([key, value]) => {
-      // false / null / undefined는 출력하지 않는다.
       if (value === false || value === null || value === undefined) {
         return '';
       }
-
-      // boolean true 속성은 key만 출력한다.
-      // 예) disabled -> 'disabled'
       if (value === true) {
         return key;
       }
-
-      // 일반 속성은 key="value" 형태로 만든다.
       return key + '="' + escapeAttribute(String(value)) + '"';
     })
     .filter(Boolean)
     .join(' ');
 
-  // 자식 노드들도 재귀적으로 HTML 문자열로 바꿔 이어 붙인다.
-  const children = (vNode.children || [])
-    .map((child) => getHtmlStringFromVNode(child))
-    .join('');
-
-  // props가 있으면 태그 안에 속성을 붙이고,
-  // 없으면 태그 이름만 있는 여는 태그를 만든다.
   const openTag = props ? '<' + vNode.type + ' ' + props + '>' : '<' + vNode.type + '>';
 
   // void 태그는 닫는 태그 없이 그대로 출력
   if (VOID_TAGS.has(vNode.type)) {
-    return openTag;
+    return indent + openTag;
   }
 
-  // 일반 태그는 여는 태그 + 자식 문자열 + 닫는 태그 형태로 반환한다.
-  return openTag + children + '</' + vNode.type + '>';
+  if (!isPretty) {
+    // flat 출력 (기존 동작 유지)
+    const children = (vNode.children || [])
+      .map((child) => getHtmlStringFromVNode(child))
+      .join('');
+    return openTag + children + '</' + vNode.type + '>';
+  }
+
+  // pretty-print: 자식을 depth+1로 재귀하여 줄바꿈 + 들여쓰기
+  const childLines = (vNode.children || [])
+    .map((child) => getHtmlStringFromVNode(child, depth + 1))
+    .filter((s) => s.trim() !== '');
+
+  if (childLines.length === 0) {
+    return indent + openTag + '</' + vNode.type + '>';
+  }
+
+  return indent + openTag + '\n' + childLines.join('\n') + '\n' + indent + '</' + vNode.type + '>';
 }
 
 function escapeHtml(text) {
@@ -360,12 +364,15 @@ function makeLine(depth) {
 //       { type: "p", props: {}, children: [...] }
 //     ]
 //   }
-function buildVDomTree(vNode, depth) {
+function buildVDomTree(vNode, depth, oldVNode) {
   const wrapper = document.createElement('div');
 
   if (vNode === null || vNode === undefined) {
     return wrapper;
   }
+
+  // old에 대응 노드가 없으면 새로 추가된 것
+  const isAdded = oldVNode === null || oldVNode === undefined;
 
   // 텍스트 노드
   if (typeof vNode === 'string') {
@@ -374,11 +381,20 @@ function buildVDomTree(vNode, depth) {
     }
 
     const line = makeLine(depth);
+    if (isAdded) {
+      line.classList.add('vdom-line-added');
+    } else if (typeof oldVNode === 'string' && oldVNode !== vNode) {
+      line.classList.add('vdom-line-changed');
+    }
     appendSpan(line, 'vdom-string', '"' + vNode.trim() + '"');
     appendSpan(line, 'vdom-punct', ',');
     wrapper.appendChild(line);
     return wrapper;
   }
+
+  const oldIsElement = !isAdded && typeof oldVNode === 'object';
+  const isTypeChanged = oldIsElement && oldVNode.type !== vNode.type;
+  const isPropsChanged = oldIsElement && JSON.stringify(oldVNode.props || {}) !== JSON.stringify(vNode.props || {});
 
   // 여는 중괄호 {
   const openLine = makeLine(depth);
@@ -387,6 +403,11 @@ function buildVDomTree(vNode, depth) {
 
   // type: "tagname",
   const typeLine = makeLine(depth + 1);
+  if (isAdded) {
+    typeLine.classList.add('vdom-line-added');
+  } else if (isTypeChanged) {
+    typeLine.classList.add('vdom-line-changed');
+  }
   appendSpan(typeLine, 'vdom-key', 'type');
   appendSpan(typeLine, 'vdom-punct', ': ');
   appendSpan(typeLine, 'vdom-string', '"' + vNode.type + '"');
@@ -395,6 +416,11 @@ function buildVDomTree(vNode, depth) {
 
   // props: { key: "val" },
   const propsLine = makeLine(depth + 1);
+  if (isAdded) {
+    propsLine.classList.add('vdom-line-added');
+  } else if (isPropsChanged) {
+    propsLine.classList.add('vdom-line-changed');
+  }
   appendSpan(propsLine, 'vdom-key', 'props');
   appendSpan(propsLine, 'vdom-punct', ': ');
 
@@ -424,13 +450,19 @@ function buildVDomTree(vNode, depth) {
   appendSpan(childrenLine, 'vdom-punct', ': [');
   wrapper.appendChild(childrenLine);
 
-  // 자식 재귀
+  // 자식 재귀 (인덱스 기준으로 old 자식과 매칭)
   const children = (vNode.children || []).filter(function (c) {
     return typeof c !== 'string' || c.trim() !== '';
   });
+  const oldChildren = oldIsElement
+    ? (oldVNode.children || []).filter(function (c) {
+        return typeof c !== 'string' || c.trim() !== '';
+      })
+    : [];
 
-  children.forEach(function (child) {
-    wrapper.appendChild(buildVDomTree(child, depth + 2));
+  children.forEach(function (child, i) {
+    const oldChild = i < oldChildren.length ? oldChildren[i] : null;
+    wrapper.appendChild(buildVDomTree(child, depth + 2, oldChild));
   });
 
   // ]
@@ -446,8 +478,8 @@ function buildVDomTree(vNode, depth) {
   return wrapper;
 }
 
-// VDOM 패널 갱신
-function updateVDomPanel(vNode) {
+// VDOM 패널 갱신 (oldVNode 전달 시 변경된 줄 하이라이트)
+function updateVDomPanel(vNode, oldVNode) {
   const area = document.getElementById('vdom-area');
 
   if (!area) {
@@ -466,11 +498,101 @@ function updateVDomPanel(vNode) {
     return;
   }
 
-  area.appendChild(buildVDomTree(vNode, 0));
+  area.appendChild(buildVDomTree(vNode, 0, oldVNode || null));
 }
 
-// Patch 내역 패널 갱신
-function updatePatchPanel(patches) {
+// Virtual patch 하나를 아이템 DOM으로 변환
+function buildPatchItem(p) {
+  const item = document.createElement('div');
+  item.className = 'patch-item patch-type-' + p.type;
+
+  const badge = document.createElement('span');
+  badge.className = 'patch-badge';
+  badge.textContent = p.type;
+  item.appendChild(badge);
+
+  const detail = document.createElement('span');
+  detail.className = 'patch-detail';
+
+  switch (p.type) {
+    case 'create':
+      detail.textContent = '<' + p.vNode.type + '>';
+      break;
+    case 'remove':
+      detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '>';
+      break;
+    case 'replace':
+      detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '> → <' + p.vNode.type + '>';
+      break;
+    case 'text':
+      detail.textContent = '"' + p.value + '"';
+      break;
+    case 'props': {
+      const allKeys = new Set([
+        ...Object.keys(p.oldProps || {}),
+        ...Object.keys(p.newProps || {})
+      ]);
+      const changed = [];
+      allKeys.forEach(function (key) {
+        if ((p.oldProps || {})[key] !== (p.newProps || {})[key]) {
+          changed.push(key);
+        }
+      });
+      detail.textContent = changed.join(', ');
+      break;
+    }
+    default:
+      detail.textContent = '';
+  }
+
+  item.appendChild(detail);
+  return item;
+}
+
+// MutationRecord 하나를 아이템 DOM으로 변환
+function buildMutationItem(m) {
+  const item = document.createElement('div');
+
+  let typeClass = 'props';
+  if (m.type === 'childList') {
+    typeClass = m.addedNodes.length > 0 ? 'create' : 'remove';
+  } else if (m.type === 'characterData') {
+    typeClass = 'text';
+  }
+  item.className = 'patch-item patch-type-' + typeClass;
+
+  const badge = document.createElement('span');
+  badge.className = 'patch-badge';
+  badge.textContent = m.type;
+  item.appendChild(badge);
+
+  const detail = document.createElement('span');
+  detail.className = 'patch-detail';
+
+  if (m.type === 'childList') {
+    const added = Array.from(m.addedNodes).map(function (n) {
+      return n.nodeName.toLowerCase();
+    }).join(', ');
+    const removed = Array.from(m.removedNodes).map(function (n) {
+      return n.nodeName.toLowerCase();
+    }).join(', ');
+    const parts = [];
+    if (added) { parts.push('+' + added); }
+    if (removed) { parts.push('-' + removed); }
+    detail.textContent = parts.join(' / ');
+  } else if (m.type === 'attributes') {
+    detail.textContent = m.attributeName + ': "' + m.target.getAttribute(m.attributeName) + '"';
+  } else if (m.type === 'characterData') {
+    const text = m.target.textContent.trim();
+    detail.textContent = '"' + (text.length > 30 ? text.slice(0, 30) + '…' : text) + '"';
+  }
+
+  item.appendChild(detail);
+  return item;
+}
+
+// Patch 내역 패널 갱신 (diff 계획 + MutationObserver 실제 감지 비교)
+function updatePatchPanel(patches, domMutations) {
   const area = document.getElementById('patch-area');
 
   if (!area) {
@@ -481,6 +603,7 @@ function updatePatchPanel(patches) {
     area.removeChild(area.firstChild);
   }
 
+  // 초기 상태 (patches 없음)
   if (!patches || patches.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'panel-empty';
@@ -490,52 +613,46 @@ function updatePatchPanel(patches) {
     return;
   }
 
+  // 두 컬럼 레이아웃
+  const columns = document.createElement('div');
+  columns.className = 'patch-columns';
+
+  // ── 왼쪽: diff 계획 ──
+  const leftCol = document.createElement('div');
+  leftCol.className = 'patch-col';
+
+  const leftHeader = document.createElement('div');
+  leftHeader.className = 'patch-col-header patch-col-header-plan';
+  leftHeader.textContent = '⚙ DIFF 계획';
+  leftCol.appendChild(leftHeader);
+
   patches.forEach(function (p) {
-    const item = document.createElement('div');
-    item.className = 'patch-item patch-type-' + p.type;
-
-    const badge = document.createElement('span');
-    badge.className = 'patch-badge';
-    badge.textContent = p.type;
-    item.appendChild(badge);
-
-    const detail = document.createElement('span');
-    detail.className = 'patch-detail';
-
-    switch (p.type) {
-      case 'create':
-        detail.textContent = '<' + p.vNode.type + '>';
-        break;
-      case 'remove':
-        detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '>';
-        break;
-      case 'replace':
-        detail.textContent = '<' + (p.el ? p.el.nodeName.toLowerCase() : '?') + '> → <' + p.vNode.type + '>';
-        break;
-      case 'text':
-        detail.textContent = '"' + p.value + '"';
-        break;
-      case 'props': {
-        const allKeys = new Set([
-          ...Object.keys(p.oldProps || {}),
-          ...Object.keys(p.newProps || {})
-        ]);
-        const changed = [];
-        allKeys.forEach(function (key) {
-          if ((p.oldProps || {})[key] !== (p.newProps || {})[key]) {
-            changed.push(key);
-          }
-        });
-        detail.textContent = changed.join(', ');
-        break;
-      }
-      default:
-        detail.textContent = '';
-    }
-
-    item.appendChild(detail);
-    area.appendChild(item);
+    leftCol.appendChild(buildPatchItem(p));
   });
+
+  // ── 오른쪽: 실제 DOM 감지 ──
+  const rightCol = document.createElement('div');
+  rightCol.className = 'patch-col';
+
+  const rightHeader = document.createElement('div');
+  rightHeader.className = 'patch-col-header patch-col-header-real';
+  rightHeader.textContent = '👁 실제 DOM 감지';
+  rightCol.appendChild(rightHeader);
+
+  if (!domMutations || domMutations.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'panel-empty';
+    empty.textContent = '감지된 변화 없음';
+    rightCol.appendChild(empty);
+  } else {
+    domMutations.forEach(function (m) {
+      rightCol.appendChild(buildMutationItem(m));
+    });
+  }
+
+  columns.appendChild(leftCol);
+  columns.appendChild(rightCol);
+  area.appendChild(columns);
 }
 
 function updatePatchLogPanel(logs) {
@@ -773,24 +890,26 @@ async function onRunTestsClick() {
 
 function initializeApp() {
   const testArea = document.getElementById('test-area');
+  const realArea = document.getElementById('real-area');
 
-  if (!testArea) {
+  if (!testArea || !realArea) {
     return;
   }
 
-  // 게임 초기 상태의 프로필 HTML을 테스트 영역에 넣는다.
-  testArea.value = initializeGame();
-
   try {
-    // 첫 로드 시 textarea의 내용을 기준으로 초기 VNode를 만든다.
-    const initialVNode = getVNodeFromInput(testArea.value);
+    // 1. game.js에서 초기 VNode를 직접 생성
+    const initialVNode = initializeGame();
 
-    // 첫 로드 때도 결과 화면이 비어 있지 않게 초기 상태를 바로 렌더링
-    currentVNode = cloneVNode(initialVNode);
-    renderVNodeToRealArea(currentVNode);
+    // 2. VNode → createNode()로 real-area에 렌더링
+    realArea.appendChild(createNode(initialVNode));
 
-    // 최초 상태도 history의 첫 항목으로 저장해 두면
-    // 뒤로가기/앞으로가기 흐름이 일관되게 유지된다.
+    // 3. real-area의 DOM을 domToVNode()로 VNode로 변환 (요구사항)
+    currentVNode = domToVNode(realArea.firstElementChild);
+
+    // 4. 그 VNode를 들여쓰기 적용한 HTML 문자열로 변환하여 test-area에 표시
+    testArea.value = getHtmlStringFromVNode(currentVNode, 0);
+
+    // 최초 상태도 history의 첫 항목으로 저장
     pushHistory(currentVNode, testArea.value);
 
     // VDOM 트리 초기 렌더링
@@ -828,17 +947,34 @@ function onPatchClick() {
 
     const patches = diff(currentVNode, newVNode, realArea);
 
-    // diff 결과를 실제 DOM에 반영하고, 그 시점의 입력 문자열을 history에 저장
+    // MutationObserver로 patch() 실행 중 실제 DOM 변화 감지
+    const domMutations = [];
+    const observer = new MutationObserver(function (mutationList) {
+      mutationList.forEach(function (m) { domMutations.push(m); });
+    });
+    observer.observe(realArea, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true
+    });
+
     patch(patches);
+    // takeRecords()로 콜백 실행 전 대기 중인 뮤테이션을 동기적으로 수집
+    observer.takeRecords().forEach(function (m) { domMutations.push(m); });
+    observer.disconnect();
+
+    // 하이라이트 비교용으로 old VNode를 먼저 저장
+    const prevVNode = currentVNode;
 
     // 패치가 끝나면 "현재 상태" 기준도 새 VNode로 바꿔야
     // 다음 Patch에서 oldNode와 newNode 비교가 올바르게 이루어진다.
     currentVNode = cloneVNode(newVNode);
     pushHistory(currentVNode, testArea.value);
 
-    // VDOM 트리 + Patch 내역 갱신
-    updateVDomPanel(currentVNode);
-    updatePatchPanel(patches);
+    // VDOM 트리 + Patch 내역 갱신 (prevVNode 전달 → 변경된 줄 하이라이트)
+    updateVDomPanel(currentVNode, prevVNode);
+    updatePatchPanel(patches, domMutations);
 
     // 패치 완료 → 대기 상태 해제
     resetPendingPatch();
