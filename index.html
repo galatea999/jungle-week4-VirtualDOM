@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Virtual DOM Diff 시각화</title>
+  <style>
+    /* 전체 레이아웃 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f5f5f5;
+    }
+
+    /* 상단 타이틀 바 */
+    .title-bar {
+      background: #2c3e50;
+      color: #fff;
+      padding: 12px 20px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+
+    /* 컨트롤 바 */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: #ecf0f1;
+      border-bottom: 1px solid #bdc3c7;
+    }
+
+    .control-bar button {
+      padding: 6px 14px;
+      border: 1px solid #95a5a6;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .control-bar button:hover {
+      background: #dfe6e9;
+    }
+
+    /* history 점 시각화 영역 */
+    .history-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 16px;
+    }
+
+    .history-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #bdc3c7;
+    }
+
+    .history-dot.active {
+      background: #2980b9;
+    }
+
+    /* 좌우 2단 패널 */
+    .panels {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #bdc3c7;
+      overflow: auto;
+    }
+
+    .panel:last-child {
+      border-right: none;
+    }
+
+    .panel-header {
+      padding: 8px 16px;
+      background: #dfe6e9;
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #2c3e50;
+      border-bottom: 1px solid #bdc3c7;
+    }
+
+    /* 왼쪽: 실제 DOM 결과 영역 (읽기 전용) */
+    #real-area {
+      flex: 1;
+      padding: 16px;
+      overflow: auto;
+      background: #fff;
+    }
+
+    /* 오른쪽: 사용자 HTML 직접 수정 textarea */
+    #test-area {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      resize: none;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      background: #fafafa;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 상단 타이틀 바 -->
+  <header class="title-bar">
+    Virtual DOM Diff 시각화
+  </header>
+
+  <!-- 컨트롤 바 -->
+  <div class="control-bar">
+    <button id="btn-patch" onclick="onPatchClick()">Patch</button>
+    <button id="btn-back" onclick="onBackClick()">◀ 뒤로</button>
+    <button id="btn-forward" onclick="onForwardClick()">앞으로 ▶</button>
+
+    <!-- history 점 시각화 -->
+    <div class="history-dots" id="history-dots">
+      <!-- app.js에서 동적으로 점을 추가 -->
+    </div>
+  </div>
+
+  <!-- 좌우 2단 패널 -->
+  <div class="panels">
+
+    <!-- 왼쪽: patch 결과 반영 (읽기 전용) -->
+    <div class="panel">
+      <div class="panel-header">실제 DOM (patch 결과)</div>
+      <div id="real-area"></div>
+    </div>
+
+    <!-- 오른쪽: 사용자가 HTML 직접 수정 -->
+    <div class="panel">
+      <div class="panel-header">테스트 영역 (직접 수정)</div>
+      <textarea id="test-area" placeholder="여기에 HTML을 직접 입력하세요..."></textarea>
+    </div>
+
+  </div>
+
+  <!-- 스크립트 로드 순서: vdom.js → diff.js → app.js -->
+  <script src="vdom.js"></script>
+  <script src="diff.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
