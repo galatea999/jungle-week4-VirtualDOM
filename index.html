@@ -53,6 +53,12 @@
       background: #dfe6e9;
     }
 
+    .control-bar button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: #f7f7f7;
+    }
+
     /* history 점 시각화 영역 */
     .history-dots {
       display: flex;
@@ -70,6 +76,12 @@
 
     .history-dot.active {
       background: #2980b9;
+    }
+
+    .history-status {
+      margin-left: 12px;
+      color: #5d6d7e;
+      font-size: 0.85rem;
     }
 
     /* 좌우 2단 패널 */
@@ -119,6 +131,24 @@
       background: #fafafa;
       outline: none;
     }
+
+    @media (max-width: 768px) {
+      .control-bar {
+        flex-wrap: wrap;
+      }
+
+      .history-dots {
+        margin-left: 0;
+      }
+
+      .panels {
+        flex-direction: column;
+      }
+
+      .panel {
+        min-height: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -138,6 +168,7 @@
     <div class="history-dots" id="history-dots">
       <!-- app.js에서 동적으로 점을 추가 -->
     </div>
+    <div class="history-status" id="history-status">히스토리 비어 있음</div>
   </div>
 
   <!-- 좌우 2단 패널 -->
