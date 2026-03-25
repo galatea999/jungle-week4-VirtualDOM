@@ -190,6 +190,9 @@ function isMeaningfulNode(node) {
   return true;
 }
 
+// VNode를 HTML 문자열로 바꿔서 test-area에 넣습니다
+// 지금 실사용에서는 “원래 사용자가 입력한 문자열”을 유지하는 게 더 중요합니다
+// history 복원 쪽에서는 바로 이 함수를 쓰지 않고 다른 함수를 거칩니다
 function syncTestArea(vNode) {
   const testArea = document.getElementById('test-area');
 
