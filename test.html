@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual DOM 테스트 러너</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 32px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 20px;
+      color: #7ee787;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 24px;
+    }
+
+    /* 실행 버튼 */
+    #btn-run {
+      padding: 10px 28px;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      margin-bottom: 32px;
+      transition: background 0.2s;
+    }
+
+    #btn-run:hover { background: #2ea043; }
+    #btn-run:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
+    /* 섹션 헤더 */
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #79c0ff;
+      margin: 24px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    /* 테스트 아이템 한 줄 */
+    .test-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      margin-bottom: 3px;
+      transition: background 0.2s;
+    }
+
+    /* 상태별 색상 */
+    .test-item.pending  { color: #8b949e; }
+    .test-item.running  { background: #1c2128; color: #e3b341; }
+    .test-item.pass     { background: #0f2a18; color: #7ee787; }
+    .test-item.fail     { background: #2a0f0f; color: #f85149; }
+
+    /* 상태 아이콘 (왼쪽 동그라미) */
+    .icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .pending .icon  { border: 2px solid #30363d; }
+    .running .icon  { border: 2px solid #e3b341; animation: spin 0.8s linear infinite; }
+    .pass    .icon  { background: #238636; color: #fff; }
+    .fail    .icon  { background: #da3633; color: #fff; }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* 오류 메시지 */
+    .error-msg {
+      font-size: 11px;
+      color: #f85149;
+      margin-left: 26px;
+      margin-top: 2px;
+      margin-bottom: 6px;
+    }
+
+    /* 진행 바 */
+    #progress-wrap {
+      display: none;
+      margin-bottom: 20px;
+    }
+
+    #progress-bar-bg {
+      width: 100%;
+      max-width: 480px;
+      height: 6px;
+      background: #21262d;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #238636;
+      border-radius: 3px;
+      transition: width 0.15s ease;
+    }
+
+    #progress-label {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 6px;
+    }
+
+    /* 최종 요약 */
+    #summary {
+      margin-top: 28px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      display: none;
+    }
+
+    #summary.pass { background: #0f2a18; color: #7ee787; border: 1px solid #238636; }
+    #summary.fail { background: #2a0f0f; color: #f85149; border: 1px solid #da3633; }
+  </style>
+</head>
+<body>
+
+  <h1>Virtual DOM 화이트박스 테스트</h1>
+  <p class="subtitle">콘솔(F12)에서 자세한 오류 메시지를 확인할 수 있어요.</p>
+
+  <button id="btn-run">▶ 테스트 실행</button>
+
+  <!-- 진행 바 -->
+  <div id="progress-wrap">
+    <div id="progress-bar-bg">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="progress-label">0 / 0</div>
+  </div>
+
+  <!-- 테스트 목록이 여기에 들어가 -->
+  <div id="results"></div>
+
+  <!-- 최종 요약 -->
+  <div id="summary"></div>
+
+  <!-- 의존 순서: vdom → diff → app → 테스트 파일들 -->
+  <script src="vdom.js"></script>
+  <script src="diff.js"></script>
+  <script src="app.js"></script>
+  <script src="vdom.test.js"></script>
+  <script src="app.test.js"></script>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // 테스트 목록 정의
+    // 섹션 이름과 테스트 함수들을 묶어서 관리해
+    // ─────────────────────────────────────────────
+    const SECTIONS = [
+      {
+        title: 'vdom.js — domToVNode() / createNode()',
+        tests: [
+          test_domToVNode_텍스트노드_문자열반환,
+          test_domToVNode_공백텍스트노드_null반환,
+          test_domToVNode_주석노드_null반환,
+          test_domToVNode_엘리먼트_VNode구조반환,
+          test_domToVNode_속성있는엘리먼트_props수집,
+          test_domToVNode_자식있는엘리먼트_children재귀변환,
+          test_createNode_문자열입력_텍스트노드생성,
+          test_createNode_VNode_태그생성,
+          test_createNode_props있음_속성설정,
+          test_createNode_children있음_자식생성,
+          test_domToVNode_createNode_왕복변환,
+          test_edge_domToVNode_속성없는엘리먼트_빈props,
+          test_edge_createNode_빈children_자식없음,
+          test_edge_domToVNode_공백섞인텍스트_trim후반환,
+          test_edge_createNode_자식여러개_순서보장,
+        ],
+      },
+      {
+        title: 'diff.js — diff() / patch()',
+        tests: [
+          test_createPatch,
+          test_removePatch,
+          test_replacePatch,
+          test_textPatch,
+          test_propsPatch,
+          test_emptyRootNoopPatch,
+          test_sameTextNoPatch,
+          test_removeSecondChildOnly,
+          test_edge_identicalNode_패치없음,
+          test_edge_childAdded_createPatch생성,
+          test_edge_deepNested_재귀탐색,
+        ],
+      },
+      {
+        title: 'app.js — 상태 관리 / 순수 함수',
+        tests: [
+          test_cloneVNode_null입력_null반환,
+          test_cloneVNode_깊은복사_원본불변,
+          test_escapeHtml_특수문자이스케이프,
+          test_getHtmlStringFromVNode_null입력_빈문자열,
+          test_getHtmlStringFromVNode_문자열_이스케이프,
+          test_getHtmlStringFromVNode_false속성_제외,
+          test_getHtmlStringFromVNode_true속성_속성명만출력,
+          test_getHtmlStringFromVNode_일반VNode_HTML문자열생성,
+          test_pushHistory_정상추가,
+          test_pushHistory_중간위치_이후이력잘림,
+          test_restoreHistory_범위밖인덱스_무시,
+          test_restoreHistory_음수인덱스_무시,
+          test_edge_onBackClick_history비어있음_무반응,
+          test_edge_onForwardClick_마지막위치_무반응,
+          test_edge_pushHistory_연속다중추가_idx정확,
+          test_edge_getVNodeFromInput_빈문자열_null반환,
+          test_edge_cloneVNode_undefined입력_undefined반환,
+        ],
+      },
+    ];
+
+    // ─────────────────────────────────────────────
+    // DOM 요소 참조
+    // ─────────────────────────────────────────────
+    const resultsEl       = document.getElementById('results');
+    const summaryEl       = document.getElementById('summary');
+    const btnRun          = document.getElementById('btn-run');
+    const progressWrapEl  = document.getElementById('progress-wrap');
+    const progressBarEl   = document.getElementById('progress-bar');
+    const progressLabelEl = document.getElementById('progress-label');
+
+    // ─────────────────────────────────────────────
+    // 테스트 아이템 DOM 요소를 미리 만들어두는 함수
+    // 처음엔 모두 'pending' 상태로 표시해
+    // ─────────────────────────────────────────────
+    // 각 테스트 함수 → DOM 요소를 연결하는 Map
+    const itemMap = new Map();
+
+    function buildUI() {
+      // 이전 결과 초기화
+      resultsEl.innerHTML = '';
+      summaryEl.style.display = 'none';
+      summaryEl.className = '';
+
+      SECTIONS.forEach(function (section) {
+        // 섹션 타이틀
+        const titleEl = document.createElement('div');
+        titleEl.className = 'section-title';
+        titleEl.textContent = section.title;
+        resultsEl.appendChild(titleEl);
+
+        // 테스트 아이템 한 줄씩 생성
+        section.tests.forEach(function (fn) {
+          const itemEl = document.createElement('div');
+          itemEl.className = 'test-item pending';
+
+          // 왼쪽 상태 아이콘
+          const iconEl = document.createElement('div');
+          iconEl.className = 'icon';
+
+          // 테스트 이름
+          const nameEl = document.createElement('span');
+          nameEl.textContent = fn.name;
+
+          itemEl.appendChild(iconEl);
+          itemEl.appendChild(nameEl);
+          resultsEl.appendChild(itemEl);
+
+          // Map에 저장해두면 나중에 상태 업데이트할 때 바로 꺼낼 수 있어
+          itemMap.set(fn, { itemEl, iconEl });
+        });
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // 테스트 1개를 실행하고 DOM 상태를 업데이트하는 함수
+    // async/await + setTimeout을 써서 브라우저가 화면을 그릴 틈을 줘
+    // ─────────────────────────────────────────────
+    function wait(ms) {
+      // ms 밀리초 후에 끝나는 Promise를 반환해
+      // await와 함께 쓰면 그 시간만큼 멈춘 것처럼 동작해
+      return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+      });
+    }
+
+    async function runTest(fn, doneCount, totalCount) {
+      const { itemEl, iconEl } = itemMap.get(fn);
+
+      // 1) 실행 중 상태로 변경
+      itemEl.className = 'test-item running';
+      iconEl.textContent = '';
+      // 브라우저가 'running' 상태를 화면에 그릴 시간을 줘 (30ms)
+      await wait(30);
+
+      // 2) 테스트 실행
+      let isPass = true;
+      let errorMsg = '';
+
+      try {
+        fn();
+      } catch (error) {
+        isPass = false;
+        errorMsg = error.message;
+        console.error(fn.name + ' 실패:', error);
+      }
+
+      // 3) 결과 반영
+      if (isPass) {
+        itemEl.className = 'test-item pass';
+        iconEl.textContent = '✓';
+      } else {
+        itemEl.className = 'test-item fail';
+        iconEl.textContent = '✕';
+
+        // 실패 시 오류 메시지를 아이템 바로 아래에 추가
+        const errEl = document.createElement('div');
+        errEl.className = 'error-msg';
+        errEl.textContent = '↳ ' + errorMsg;
+        itemEl.insertAdjacentElement('afterend', errEl);
+      }
+
+      // 4) 진행 바 업데이트
+      const percent = Math.round((doneCount / totalCount) * 100);
+      progressBarEl.style.width = percent + '%';
+      progressLabelEl.textContent = doneCount + ' / ' + totalCount;
+
+      return isPass;
+    }
+
+    // ─────────────────────────────────────────────
+    // 전체 테스트를 순서대로 실행하는 메인 함수
+    // ─────────────────────────────────────────────
+    async function runAll() {
+      // 버튼 비활성화
+      btnRun.disabled = true;
+      btnRun.textContent = '실행 중...';
+
+      // UI 초기화 + 진행 바 표시
+      buildUI();
+      progressWrapEl.style.display = 'block';
+
+      // 전체 테스트 수 계산
+      const allTests = SECTIONS.flatMap(function (s) { return s.tests; });
+      const totalCount = allTests.length;
+      let passCount = 0;
+      let doneCount = 0;
+
+      // 섹션 순서대로, 각 섹션 안에서도 순서대로 실행
+      for (let si = 0; si < SECTIONS.length; si++) {
+        const section = SECTIONS[si];
+
+        for (let ti = 0; ti < section.tests.length; ti++) {
+          doneCount++;
+          const isPass = await runTest(section.tests[ti], doneCount, totalCount);
+          if (isPass) {
+            passCount++;
+          }
+        }
+      }
+
+      // ── 최종 요약 표시 ──────────────────────────
+      summaryEl.style.display = 'block';
+
+      if (passCount === totalCount) {
+        summaryEl.className = 'pass';
+        summaryEl.textContent = '✅ 전체 통과  ' + passCount + ' / ' + totalCount + '  🎉';
+      } else {
+        summaryEl.className = 'fail';
+        summaryEl.textContent =
+          '❌ ' + (totalCount - passCount) + '개 실패  ' + passCount + ' / ' + totalCount + ' 통과';
+      }
+
+      // 버튼 복구
+      btnRun.disabled = false;
+      btnRun.textContent = '▶ 다시 실행';
+    }
+
+    // ─────────────────────────────────────────────
+    // 버튼 클릭 이벤트 연결
+    // ─────────────────────────────────────────────
+    btnRun.addEventListener('click', function () {
+      runAll();
+    });
+
+    // 페이지 로드 시 UI만 미리 그려둬 (실행은 버튼 클릭 후)
+    buildUI();
+  </script>
+</body>
+</html>

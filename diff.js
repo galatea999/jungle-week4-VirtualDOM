@@ -404,3 +404,140 @@ function test_emptyRootNoopPatch() {
   // then
   console.assert(patches.length === 0, '빈 루트 diff는 패치가 없어야 한다');
 }
+
+// 테스트 7: 같은 텍스트 → 패치 없음
+// 텍스트가 바뀌지 않으면 아무 패치도 생성하면 안 된다
+function test_sameTextNoPatch() {
+  // given
+  const textEl = document.createTextNode('변하지 않는 텍스트');
+  const parentEl = document.createElement('div');
+  parentEl.appendChild(textEl);
+
+  // when
+  const patches = diff('변하지 않는 텍스트', '변하지 않는 텍스트', parentEl, textEl);
+
+  // then
+  console.assert(patches.length === 0, '같은 텍스트는 패치가 없어야 한다');
+}
+
+// 테스트 8: 자식이 2개일 때 두 번째 자식만 제거 → 첫 번째 자식은 살아있어야 한다
+// 이 테스트는 existingEl 버그를 재현한다.
+// 이전에는 항상 parentEl.firstChild를 참조해서 잘못된 자식을 제거했었음.
+function test_removeSecondChildOnly() {
+  // given: p와 span 두 자식을 가진 실제 DOM
+  const parentEl = document.createElement('div');
+  const firstEl = document.createElement('p');
+  const secondEl = document.createElement('span');
+  parentEl.appendChild(firstEl);
+  parentEl.appendChild(secondEl);
+
+  const oldNode = {
+    type: 'div', props: {}, children: [
+      { type: 'p', props: {}, children: [] },
+      { type: 'span', props: {}, children: [] },
+    ],
+  };
+  const newNode = {
+    type: 'div', props: {}, children: [
+      { type: 'p', props: {}, children: [] },
+      // span이 사라진 상태
+    ],
+  };
+
+  // when
+  const patches = diff(oldNode, newNode, parentEl, parentEl);
+  patch(patches);
+
+  // then: p는 살아있고 span만 사라져야 한다
+  console.assert(parentEl.children.length === 1, '자식이 1개만 남아야 한다');
+  console.assert(parentEl.children[0].tagName.toLowerCase() === 'p', '남은 자식이 p여야 한다');
+}
+
+
+// =============================================
+// 엣지 케이스 테스트
+// =============================================
+
+// 엣지 케이스 1: oldNode와 newNode가 완전히 동일 → 패치가 하나도 없어야 한다
+// 아무것도 안 바꿨는데 패치가 생기면 불필요한 DOM 조작이 일어나는 버그야
+function test_edge_identicalNode_패치없음() {
+  // given: 완전히 동일한 두 VNode
+  const parentEl = document.createElement('div');
+  const el = document.createElement('p');
+  el.setAttribute('class', 'text');
+  parentEl.appendChild(el);
+
+  const oldNode = { type: 'p', props: { class: 'text' }, children: [] };
+  const newNode = { type: 'p', props: { class: 'text' }, children: [] };
+
+  // when
+  const patches = diff(oldNode, newNode, parentEl, el);
+
+  // then: 아무것도 안 바뀌었으니 패치가 0개여야 한다
+  console.assert(patches.length === 0, '동일한 노드는 패치가 없어야 한다');
+}
+
+// 엣지 케이스 2: 자식이 추가되는 경우 → create 패치가 생겨야 한다
+// oldChildren보다 newChildren이 많을 때 새 자식에 대한 create 패치가 생성되어야 해
+function test_edge_childAdded_createPatch생성() {
+  // given: 자식이 1개 → 2개로 늘어나는 상황
+  const parentEl = document.createElement('div');
+  const firstEl = document.createElement('p');
+  parentEl.appendChild(firstEl);
+
+  const oldNode = {
+    type: 'div', props: {}, children: [
+      { type: 'p', props: {}, children: [] },
+    ],
+  };
+  const newNode = {
+    type: 'div', props: {}, children: [
+      { type: 'p', props: {}, children: [] },
+      { type: 'span', props: {}, children: [] }, // 새로 추가된 자식
+    ],
+  };
+
+  // when
+  const patches = diff(oldNode, newNode, parentEl, parentEl);
+
+  // then: 새 자식에 대한 create 패치가 있어야 한다
+  const createPatch = patches.find(function (p) { return p.type === 'create'; });
+  console.assert(createPatch !== undefined, '새 자식에 대한 create 패치가 있어야 한다');
+  console.assert(createPatch.vNode.type === 'span', 'create 패치의 vNode가 span이어야 한다');
+}
+
+// 엣지 케이스 3: 3단계 깊이 중첩된 VNode → 재귀가 끝까지 내려가야 한다
+// div > p > span > '텍스트' 구조에서 텍스트만 바뀌면 text 패치가 나와야 해
+function test_edge_deepNested_재귀탐색() {
+  // given: 3단계 중첩 실제 DOM 구성
+  const parentEl = document.createElement('div');
+  const pEl = document.createElement('p');
+  const spanEl = document.createElement('span');
+  const textEl = document.createTextNode('이전');
+  spanEl.appendChild(textEl);
+  pEl.appendChild(spanEl);
+  parentEl.appendChild(pEl);
+
+  const oldNode = {
+    type: 'div', props: {}, children: [{
+      type: 'p', props: {}, children: [{
+        type: 'span', props: {}, children: ['이전'],
+      }],
+    }],
+  };
+  const newNode = {
+    type: 'div', props: {}, children: [{
+      type: 'p', props: {}, children: [{
+        type: 'span', props: {}, children: ['이후'], // 텍스트만 바뀜
+      }],
+    }],
+  };
+
+  // when
+  const patches = diff(oldNode, newNode, parentEl, parentEl);
+
+  // then: 깊은 곳의 텍스트 변경이 text 패치로 잡혀야 한다
+  const textPatch = patches.find(function (p) { return p.type === 'text'; });
+  console.assert(textPatch !== undefined, '3단계 깊이의 텍스트 변경이 감지되어야 한다');
+  console.assert(textPatch.value === '이후', 'text 패치의 값이 "이후"여야 한다');
+}
