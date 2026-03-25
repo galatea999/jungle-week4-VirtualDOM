@@ -15,6 +15,7 @@
 // 이렇게 htmlText까지 같이 저장하는 이유는
 // 뒤로가기/앞으로가기 할 때 textarea도 사용자가 보던 모양 그대로 복원하기 위해서다.
 let history = [];
+const HISTORY_LIMIT = 10;
 
 // historyIdx는 history 배열에서 "지금 보고 있는 상태"의 위치를 가리킨다.
 // 예)
@@ -52,6 +53,13 @@ function pushHistory(vNode, htmlText) {
   // 새 상태를 history 끝에 넣고,
   // 현재 위치도 가장 마지막 상태를 가리키도록 갱신한다.
   history.push(snapshot);
+
+  // history는 최신 10개까지만 유지한다.
+  // 제한을 넘기면 가장 오래된 상태를 제거한다.
+  if (history.length > HISTORY_LIMIT) {
+    history.shift();
+  }
+
   historyIdx = history.length - 1;
 }
 

@@ -185,7 +185,7 @@ function generateProfileHTML() {
   html += '  <h2 class="level level-' + lvl.level + '">' + lvl.levelIcon + ' ' + lvl.levelName + '</h2>\n';
   html += '  <p class="career">경력 ' + lvl.career + '년차</p>\n';
   html += '  <p class="gold">💰 ' + gameState.gold + ' G</p>\n';
-  html += '  <p class="hire-info">취업 보상: ' + lvl.hireReward + ' G</p>\n';
+  html += '  <p class="hire-info">퇴직 보상: ' + lvl.hireReward + ' G</p>\n';
   html += '  <div class="exp-bar">\n';
   html += '    <progress value="' + exp + '" max="' + lvl.maxExp + '"></progress>\n';
   html += '    <span>' + exp + ' / ' + lvl.maxExp + ' EXP</span>\n';
