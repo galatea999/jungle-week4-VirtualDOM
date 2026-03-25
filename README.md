@@ -1,6 +1,6 @@
 # Virtual DOM Diff
 
-> 바닐라 JS로 구현한 Virtual DOM 비교(Diff) 및 패치(Patch) 시스템
+> 바닐라 JavaScript로 구현한 Virtual DOM Diff 시각화 게임
 
 팀: 은재 · 정환 · 세인
 
@@ -8,22 +8,30 @@
 
 ## 프로젝트 개요
 
-React 같은 프레임워크가 내부적으로 사용하는 **Virtual DOM Diff 알고리즘**을 직접 구현합니다.
-실제 DOM을 직접 조작하는 대신, JavaScript 객체(VNode)로 UI 상태를 표현하고 변경 전후를 비교해 **최소한의 DOM 조작**만 수행합니다.
+DOM 객체를 Virtual DOM 형태로 표현하고, Diff 알고리즘으로 변경 전후를 비교해 바뀐 내용을 시각적으로 확인할 수 있는 **'개발자 키우기' 게임**입니다.
+
+한정된 골드로 `코딩하기`, `사이드 프로젝트`, `CS 공부`, `야근하기` 액션을 수행해 경험치를 쌓고 레벨업하는 구조이며, 버튼을 누를 때마다 게임 상태가 반영된 HTML이 `TEST AREA`에 출력됩니다. 이후 `PATCH` 버튼을 누르면 이전 VDOM과 새 VDOM을 비교해 계산한 변경 사항을 `PATCH` 패널에 보여주고, 같은 결과를 `REAL AREA`의 실제 DOM에 반영합니다.
+
+프로젝트 전체는 외부 라이브러리 없이 바닐라 JavaScript만으로 구현했습니다.
 
 ---
 
-## 왜 Virtual DOM이 필요한가
+## 왜 Virtual DOM을 사용하는가
 
-실제 DOM은 조작 비용이 크다. 요소 하나를 바꿔도 브라우저는 레이아웃 계산(Reflow)과 화면 다시 그리기(Repaint)를 수행한다.
-Virtual DOM은 이 문제를 두 단계로 분리한다:
+실제 DOM은 요소 하나만 바꿔도 브라우저가 레이아웃을 재계산하는 **Reflow**와, 이를 바탕으로 화면을 다시 그리는 **Repaint**를 수행합니다. 변경이 발생할 때마다 DOM을 직접 조작하면 이런 비용이 반복되기 때문에 비효율적입니다.
 
-1. **비교(Diff)**: 이전 VNode와 새 VNode를 JavaScript 레벨에서 재귀적으로 비교해 *무엇이 바뀌었는지* patches 배열로 정리
-2. **적용(Patch)**: 계산된 patches만 실제 DOM에 반영 → 불필요한 DOM 조작 최소화
+원래 DOM 객체는 이벤트 리스너나 렌더링 엔진과 관련된 무거운 브라우저 기능을 포함하고 있습니다. 하지만 변경 전후를 비교하는 데는 구조와 데이터만 있으면 충분하므로, 이 프로젝트에서는 이런 기능을 제거한 순수 JavaScript 객체 형태의 **Virtual DOM**으로 UI 상태를 표현합니다.
+
+변경 처리는 다음 두 단계로 나누어 진행합니다.
+
+1. **비교(Diff)**: 이전 VNode와 새 VNode를 재귀적으로 비교해 무엇이 바뀌었는지 `patches` 배열로 정리합니다.
+2. **적용(Patch)**: 계산된 `patches`를 실제 DOM에 반영해 불필요한 DOM 조작을 최소화합니다.
 
 ---
 
 ## VNode 구조
+
+VNode는 태그명, 속성, 자식 노드를 담는 순수 JavaScript 객체입니다.
 
 ```js
 {
@@ -33,11 +41,13 @@ Virtual DOM은 이 문제를 두 단계로 분리한다:
 }
 ```
 
+여기서 `type`은 HTML 태그명, `props`는 속성값, `children`은 자식 노드 배열입니다. 부모-자식 관계가 반복되는 트리 구조이기 때문에, Diff 알고리즘을 재귀적으로 호출하여 트리의 모든 노드를 탐색합니다.
+
 ---
 
 ## Diff 알고리즘
 
-두 VNode를 재귀적으로 비교해 patches 배열을 반환한다.
+Diff 알고리즘은 이전 VNode와 새 VNode를 재귀적으로 비교해 변경 내용과 대상 노드 정보를 `patches` 배열로 수집합니다. 이 과정에서 상황을 총 5가지 케이스로 분류합니다.
 
 ### 5가지 케이스
 
@@ -49,6 +59,8 @@ Virtual DOM은 이 문제를 두 단계로 분리한다:
 | 텍스트 내용이 다름 | `text` |
 | props가 다름 (같은 타입) | `props` + 자식 재귀 탐색 |
 
+이렇게 분류된 변경 내용은 `patches` 배열에 담기고, `patch(patches)` 함수가 이를 인자로 받아 실제 DOM에 순서대로 반영합니다.
+
 ### patches 배열 스펙
 
 ```js
@@ -57,23 +69,6 @@ Virtual DOM은 이 문제를 두 단계로 분리한다:
 { type: 'replace', el: Node, vNode: VNode }
 { type: 'text',    el: Node, value: string }
 { type: 'props',   el: Node, oldProps: object, newProps: object }
-```
-
-### 자식 비교: key-prop 방식
-
-단순 인덱스 기반 비교는 리스트 순서가 바뀌면 모든 노드를 replace로 처리한다.
-
-```
-// 인덱스 방식: [A, B, C] → [C, A, B]
-// 결과: replace×3 (실제로는 아무것도 안 바뀌었는데)
-```
-
-이 프로젝트는 `props.key`를 기준으로 같은 노드를 찾는 **key-prop 방식**을 사용한다.
-key가 없는 노드는 인덱스 순서로 폴백한다.
-
-```
-// key 방식: [A, B, C] → [C, A, B]  (각 노드에 key 있음)
-// 결과: patch 0개 (내용이 같으므로)
 ```
 
 ---
