@@ -16,7 +16,7 @@
   parameter :  이 함수의 매개변수다. { 들어올 수 있는 타입들. }
  * @param {VNode | string | null} newNode - 새로운 상태의 가상 노드
  * @param {Node} parentEl - 실제 DOM 부모 노드
- * @param {Node | null} existingEl - oldNode에 대응하는 실제 DOM 노드 (없으면 null)
+ * @param {Node | null} existingEl - oldNode에 대응하는 실제 DOM 노드 (생략 시 parentEl.firstChild 사용)
  * @returns {Array} patches
  *
  * 처리해야 할 5가지 케이스:
@@ -26,7 +26,7 @@
  *   4. 텍스트 다름   → text
  *   5. props 다름    → props  (같은 타입이면 자식도 재귀 탐색)
  */
-function diff(oldNode, newNode, parentEl, existingEl) {
+function diff(oldNode, newNode, parentEl, existingEl = parentEl.firstChild) {
   // patches는 "무엇을 바꿔야 하나?"를 기록해두는 메모 목록이야.
   // 나중에 patch() 함수가 이 목록을 보고 실제 화면을 바꿔줘.
   const patches = [];
@@ -52,19 +52,12 @@ function diff(oldNode, newNode, parentEl, existingEl) {
     return patches;
   }
 
-  // ── 실제 DOM 요소 확정 ────────────────────────────────────────────
-  // existingEl이 직접 넘어왔으면 그것을 쓰고,
-  // 없으면 parentEl의 첫 번째 자식으로 추정해.
-  // (버그 수정) 이전에는 항상 parentEl.firstChild를 썼는데,
-  // 자식이 여러 개일 때 i번째 자식이 아닌 첫 번째를 참조하는 버그가 있었음.
-  const el = existingEl !== undefined ? existingEl : parentEl.firstChild;
-
   // ── 케이스 2: 새 노드가 없음 → 기존 것을 지워야 함 ────────────────
   // 예) 화면에 있던 <p>가 사라져야 할 때
   if (newNode === null || newNode === undefined) {
     patches.push({
-      type: 'remove', // "이거 지워!" 라는 명령 종류
-      el: el,         // 지울 실제 DOM 요소 (이제 i번째 자식을 정확히 가리킴)
+      type: 'remove',     // "이거 지워!" 라는 명령 종류
+      el: existingEl,     // 지울 실제 DOM 요소 (i번째 자식을 정확히 가리킴)
     });
     return patches;
   }
@@ -78,9 +71,9 @@ function diff(oldNode, newNode, parentEl, existingEl) {
     // 케이스 4: 텍스트 내용이 달라진 경우
     if (oldNode !== newNode) {
       patches.push({
-        type: 'text',   // "텍스트 내용 바꿔!" 라는 명령 종류
-        el: el,         // 바꿀 실제 텍스트 노드 (이제 i번째 자식을 정확히 가리킴)
-        value: newNode, // 새로운 텍스트 내용
+        type: 'text',       // "텍스트 내용 바꿔!" 라는 명령 종류
+        el: existingEl,     // 바꿀 실제 텍스트 노드 (i번째 자식을 정확히 가리킴)
+        value: newNode,     // 새로운 텍스트 내용
       });
     }
     // 텍스트가 같으면 아무것도 안 해도 돼 → patches는 빈 배열
@@ -91,9 +84,9 @@ function diff(oldNode, newNode, parentEl, existingEl) {
   // 예) 'hello' 였다가 <div> 가 되거나, <div> 였다가 'hello' 가 된 경우
   if (isOldText !== isNewText) {
     patches.push({
-      type: 'replace', // "통째로 교체해!" 라는 명령 종류
-      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
-      vNode: newNode,  // 교체할 새 VNode
+      type: 'replace',    // "통째로 교체해!" 라는 명령 종류
+      el: existingEl,     // 교체될 기존 실제 DOM (i번째 자식을 정확히 가리킴)
+      vNode: newNode,     // 교체할 새 VNode
     });
     return patches;
   }
@@ -102,9 +95,9 @@ function diff(oldNode, newNode, parentEl, existingEl) {
   // 예) <p> 였다가 <h2> 가 된 경우 → 통째로 바꿔야 함
   if (oldNode.type !== newNode.type) {
     patches.push({
-      type: 'replace', // "통째로 교체해!" 라는 명령 종류
-      el: el,          // 교체될 기존 실제 DOM (이제 i번째 자식을 정확히 가리킴)
-      vNode: newNode,  // 교체할 새 VNode
+      type: 'replace',    // "통째로 교체해!" 라는 명령 종류
+      el: existingEl,     // 교체될 기존 실제 DOM (i번째 자식을 정확히 가리킴)
+      vNode: newNode,     // 교체할 새 VNode
     });
     return patches;
   }
@@ -119,7 +112,7 @@ function diff(oldNode, newNode, parentEl, existingEl) {
   if (hasPropsChanged) {
     patches.push({
       type: 'props',           // "속성 바꿔!" 라는 명령 종류
-      el: el,                  // 속성을 바꿀 실제 DOM 요소
+      el: existingEl,          // 속성을 바꿀 실제 DOM 요소
       oldProps: oldNode.props, // 이전 속성 목록
       newProps: newNode.props, // 새로운 속성 목록
     });
@@ -141,13 +134,13 @@ function diff(oldNode, newNode, parentEl, existingEl) {
     // i번째 새로운 자식 (없으면 null)
     const newChild = newChildren[i] !== undefined ? newChildren[i] : null;
 
-    // (버그 수정) i번째 실제 DOM 자식을 정확히 구해서 넘겨줘.
-    // 이전에는 이 값을 구하고도 diff에 넘기지 않아서 firstChild만 참조했었음.
-    const childEl = el.childNodes[i] !== undefined ? el.childNodes[i] : null;
+    // i번째 실제 DOM 자식을 정확히 구해서 넘겨줘.
+    // existingEl이 null이면 자식도 없으니 null로 처리해.
+    const childEl = existingEl && existingEl.childNodes[i] !== undefined ? existingEl.childNodes[i] : null;
 
     // 자식에 대해 diff를 재귀 호출 → 자식의 패치 목록을 받아옴
     // childEl을 existingEl로 넘겨줘서 i번째 자식을 정확히 가리키게 함
-    const childPatches = diff(oldChild, newChild, el, childEl);
+    const childPatches = diff(oldChild, newChild, existingEl, childEl);
 
     // 자식의 패치 목록을 전체 패치 목록에 합쳐줘
     childPatches.forEach((patch) => patches.push(patch));
