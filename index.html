@@ -288,6 +288,7 @@
     .btn-study    { background: #6e40c9; border-color: #8957e5; }
     .btn-overtime { background: #9a3412; border-color: #d29922; }
     .btn-hire     { background: linear-gradient(135deg, #7d4e00, #d29922); border-color: #f0b429; color: #fffbe6; }
+    .btn-test     { background: #0f766e; border-color: #14b8a6; }
 
     /* ── 프로필 카드 (real-area 내부) ── */
     .profile {
@@ -458,13 +459,16 @@
     <button class="btn-study"    onclick="onStudyClick()">📖 CS 공부 +25 | 15G (80%)</button>
     <button class="btn-overtime" onclick="onOvertimeClick()">🔥 야근 +50 | 30G (40%)</button>
     <button class="btn-hire"     onclick="onHireClick()">💼 취업하기</button>
+    <button class="btn-test" id="btn-run-tests" onclick="onRunTestsClick()">🧪 테스트하기</button>
   </div>
 
-  <!-- 스크립트 로드 순서: vdom.js → diff.js → game.js → app.js -->
+  <!-- 스크립트 로드 순서: vdom.js → diff.js → game.js → app.js → 테스트 -->
   <script src="vdom.js"></script>
   <script src="diff.js"></script>
   <script src="game.js"></script>
   <script src="app.js"></script>
+  <script src="vdom.test.js"></script>
+  <script src="app.test.js"></script>
 
 </body>
 </html>

@@ -212,7 +212,7 @@ function test_pushHistory_중간위치_이후이력잘림() {
   // then: C가 사라지고 A, B, D 만 남아야 한다
   assertTest(history.length === 3, '[pushHistory] 이후 이력이 잘려 총 3개여야 한다');
   assertTest(historyIdx === 2, '[pushHistory] historyIdx가 2여야 한다');
-  assertTest(history[2].children[0] === 'D', '[pushHistory] 마지막 이력이 D여야 한다');
+  assertTest(history[2].vNode.children[0] === 'D', '[pushHistory] 마지막 이력이 D여야 한다');
   console.log('test_pushHistory_중간위치_이후이력잘림 완료');
 }
 
