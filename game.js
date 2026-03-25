@@ -112,6 +112,12 @@ let gameState = {
   gold: 100
 };
 
+// 버튼을 눌렀지만 아직 Patch 안 한 상태 여부
+let isPendingPatch = false;
+
+// 버튼 누르기 직전 상태 스냅샷 (다른 버튼으로 교체 시 복원용)
+let gameStateSnapshot = null;
+
 // 별 표시 문자열 생성
 // 예) starsToString(3) → '★★★☆☆'
 function starsToString(count) {
@@ -216,12 +222,33 @@ function addExp(amount) {
   return false;
 }
 
+// 패치 대기 상태 해제 (app.js의 onPatchClick에서 호출)
+function resetPendingPatch() {
+  isPendingPatch = false;
+  gameStateSnapshot = null;
+}
+
 // 게임 액션 공통 처리
-// 골드 차감 → 확률 판정 → 경험치 추가 → 테스트 영역 갱신 → 자동 Patch
+// 스냅샷 복원(필요 시) → 골드 차감 → 확률 판정 → 경험치 추가 → 테스트 영역 갱신
 function executeGameAction(expAmount, successRate, actionName, cost) {
+  // 이미 패치 대기 중이면 스냅샷으로 복원 후 새 액션으로 교체
+  if (isPendingPatch && gameStateSnapshot) {
+    gameState.levelIdx = gameStateSnapshot.levelIdx;
+    gameState.exp = gameStateSnapshot.exp;
+    gameState.gold = gameStateSnapshot.gold;
+  }
+
+  // 현재 상태를 스냅샷으로 저장
+  gameStateSnapshot = {
+    levelIdx: gameState.levelIdx,
+    exp: gameState.exp,
+    gold: gameState.gold
+  };
+
   // 골드 부족 체크
   if (gameState.gold < cost) {
     console.log(actionName + ' 불가! 골드 부족 (보유: ' + gameState.gold + 'G / 필요: ' + cost + 'G)');
+    gameStateSnapshot = null;
     return;
   }
 
@@ -234,13 +261,14 @@ function executeGameAction(expAmount, successRate, actionName, cost) {
 
   if (!isSuccess) {
     console.log(actionName + ' 실패! -' + cost + 'G (성공 확률: ' + successRate + '%)');
-    // 실패해도 골드가 줄었으므로 테스트 영역만 갱신 (patch는 수동)
     updateTestAreaWithGameState();
+    isPendingPatch = true;
     return;
   }
 
   const isLevelUp = addExp(expAmount);
   updateTestAreaWithGameState();
+  isPendingPatch = true;
 
   console.log(actionName + ' 성공! +' + expAmount + ' EXP, -' + cost + 'G (확률: ' + successRate + '%)');
 
@@ -272,6 +300,20 @@ function onOvertimeClick() {
 
 // 취업하기: 현재 레벨 비례 골드 획득 + 1단계로 리셋
 function onHireClick() {
+  // 패치 대기 중이면 스냅샷으로 복원 후 새 액션으로 교체
+  if (isPendingPatch && gameStateSnapshot) {
+    gameState.levelIdx = gameStateSnapshot.levelIdx;
+    gameState.exp = gameStateSnapshot.exp;
+    gameState.gold = gameStateSnapshot.gold;
+  }
+
+  // 현재 상태 스냅샷 저장
+  gameStateSnapshot = {
+    levelIdx: gameState.levelIdx,
+    exp: gameState.exp,
+    gold: gameState.gold
+  };
+
   const lvl = getCurrentLevel();
   const reward = lvl.hireReward;
 
@@ -281,8 +323,8 @@ function onHireClick() {
 
   console.log('취업 완료! +' + reward + 'G (보유: ' + gameState.gold + 'G) → 다시 코딩 첫날부터!');
 
-  // 취업 후에도 테스트 영역만 갱신 (patch는 수동)
   updateTestAreaWithGameState();
+  isPendingPatch = true;
 }
 
 // 게임 상태를 테스트 영역에 반영

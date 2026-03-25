@@ -596,6 +596,9 @@ function onPatchClick() {
     updateVDomPanel(currentVNode);
     updatePatchPanel(patches);
 
+    // 패치 완료 → 대기 상태 해제
+    resetPendingPatch();
+
     renderHistory();
   } catch (error) {
     console.error('패치 적용 중 오류', error);
