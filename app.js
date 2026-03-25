@@ -199,6 +199,17 @@ function initializeApp() {
     testArea.value = '<div class="card">\n  <h2>Virtual DOM</h2>\n  <p>여기를 수정하고 Patch를 눌러보세요.</p>\n</div>';
   }
 
+  try {
+    const initialVNode = getVNodeFromInput(testArea.value);
+
+    currentVNode = cloneVNode(initialVNode);
+    renderVNodeToRealArea(currentVNode);
+    syncTestArea(currentVNode);
+    pushHistory(currentVNode);
+  } catch (error) {
+    console.error('초기 렌더링 중 오류', error);
+  }
+
   renderHistory();
 }
 
