@@ -28,6 +28,18 @@ function cloneVNode(vNode) {
   return JSON.parse(JSON.stringify(vNode));
 }
 
+function isSameVNode(oldNode, newNode) {
+  if (oldNode === newNode) {
+    return true;
+  }
+
+  if (oldNode === null || oldNode === undefined || newNode === null || newNode === undefined) {
+    return false;
+  }
+
+  return JSON.stringify(oldNode) === JSON.stringify(newNode);
+}
+
 function getHtmlStringFromVNode(vNode) {
   if (vNode === null || vNode === undefined) {
     return '';
@@ -226,6 +238,13 @@ function onPatchClick() {
     const realArea = document.getElementById('real-area');
     const testArea = document.getElementById('test-area');
     const newVNode = getVNodeFromInput(testArea.value);
+
+    if (isSameVNode(currentVNode, newVNode)) {
+      console.log('변경된 내용이 없어 히스토리를 추가하지 않습니다.');
+      renderHistory();
+      return;
+    }
+
     const patches = diff(currentVNode, newVNode, realArea);
 
     patch(patches);
