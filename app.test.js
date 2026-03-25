@@ -4,6 +4,12 @@
 // AI 규약 버전: v1.0
 // =============================================
 
+function assertTest(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
 // ─────────────────────────────────────────────
 // 테스트 헬퍼: 전역 상태를 초기화하는 함수
 // app.js의 전역 변수(history, historyIdx, currentVNode)를
@@ -32,7 +38,7 @@ function test_cloneVNode_null입력_null반환() {
   const result = cloneVNode(input);
 
   // then
-  console.assert(result === null, '[cloneVNode] null 입력 시 null을 반환해야 한다');
+  assertTest(result === null, '[cloneVNode] null 입력 시 null을 반환해야 한다');
   console.log('test_cloneVNode_null입력_null반환 완료');
 }
 
@@ -45,12 +51,12 @@ function test_cloneVNode_깊은복사_원본불변() {
   const cloned = cloneVNode(original);
 
   // then: 내용은 같아야 한다
-  console.assert(cloned.type === 'div', '[cloneVNode] type이 복사되어야 한다');
-  console.assert(cloned.props.class === 'card', '[cloneVNode] props가 복사되어야 한다');
+  assertTest(cloned.type === 'div', '[cloneVNode] type이 복사되어야 한다');
+  assertTest(cloned.props.class === 'card', '[cloneVNode] props가 복사되어야 한다');
 
   // then: 복사본을 수정해도 원본은 바뀌지 않아야 한다 (깊은 복사 검증)
   cloned.props.class = '변경됨';
-  console.assert(original.props.class === 'card', '[cloneVNode] 복사본 수정이 원본에 영향을 주면 안 된다');
+  assertTest(original.props.class === 'card', '[cloneVNode] 복사본 수정이 원본에 영향을 주면 안 된다');
   console.log('test_cloneVNode_깊은복사_원본불변 완료');
 }
 
@@ -70,10 +76,10 @@ function test_escapeHtml_특수문자이스케이프() {
   const result = escapeHtml(input);
 
   // then
-  console.assert(result.includes('&lt;'), '[escapeHtml] <가 &lt;로 이스케이프되어야 한다');
-  console.assert(result.includes('&gt;'), '[escapeHtml] >가 &gt;로 이스케이프되어야 한다');
-  console.assert(result.includes('&amp;'), '[escapeHtml] &가 &amp;로 이스케이프되어야 한다');
-  console.assert(!result.includes('<script>'), '[escapeHtml] 원본 <script> 태그가 남아있으면 안 된다');
+  assertTest(result.includes('&lt;'), '[escapeHtml] <가 &lt;로 이스케이프되어야 한다');
+  assertTest(result.includes('&gt;'), '[escapeHtml] >가 &gt;로 이스케이프되어야 한다');
+  assertTest(result.includes('&amp;'), '[escapeHtml] &가 &amp;로 이스케이프되어야 한다');
+  assertTest(!result.includes('<script>'), '[escapeHtml] 원본 <script> 태그가 남아있으면 안 된다');
   console.log('test_escapeHtml_특수문자이스케이프 완료');
 }
 
@@ -98,7 +104,7 @@ function test_getHtmlStringFromVNode_null입력_빈문자열() {
   const result = getHtmlStringFromVNode(vNode);
 
   // then
-  console.assert(result === '', '[getHtmlStringFromVNode] null 입력 시 빈 문자열을 반환해야 한다');
+  assertTest(result === '', '[getHtmlStringFromVNode] null 입력 시 빈 문자열을 반환해야 한다');
   console.log('test_getHtmlStringFromVNode_null입력_빈문자열 완료');
 }
 
@@ -111,7 +117,7 @@ function test_getHtmlStringFromVNode_문자열_이스케이프() {
   const result = getHtmlStringFromVNode(vNode);
 
   // then: < > 가 이스케이프되어야 한다
-  console.assert(result === '&lt;위험&gt;', '[getHtmlStringFromVNode] 문자열은 이스케이프되어야 한다');
+  assertTest(result === '&lt;위험&gt;', '[getHtmlStringFromVNode] 문자열은 이스케이프되어야 한다');
   console.log('test_getHtmlStringFromVNode_문자열_이스케이프 완료');
 }
 
@@ -124,7 +130,7 @@ function test_getHtmlStringFromVNode_false속성_제외() {
   const result = getHtmlStringFromVNode(vNode);
 
   // then: disabled 속성이 HTML에 포함되면 안 된다
-  console.assert(result === '<button></button>', '[getHtmlStringFromVNode] false 속성은 출력되면 안 된다');
+  assertTest(result === '<button></button>', '[getHtmlStringFromVNode] false 속성은 출력되면 안 된다');
   console.log('test_getHtmlStringFromVNode_false속성_제외 완료');
 }
 
@@ -137,8 +143,8 @@ function test_getHtmlStringFromVNode_true속성_속성명만출력() {
   const result = getHtmlStringFromVNode(vNode);
 
   // then: checked 속성명만 들어가야 한다 (값 없이)
-  console.assert(result.includes('checked'), '[getHtmlStringFromVNode] true 속성은 속성명만 출력되어야 한다');
-  console.assert(!result.includes('checked="'), '[getHtmlStringFromVNode] true 속성에 ="..." 형식이 붙으면 안 된다');
+  assertTest(result.includes('checked'), '[getHtmlStringFromVNode] true 속성은 속성명만 출력되어야 한다');
+  assertTest(!result.includes('checked="'), '[getHtmlStringFromVNode] true 속성에 ="..." 형식이 붙으면 안 된다');
   console.log('test_getHtmlStringFromVNode_true속성_속성명만출력 완료');
 }
 
@@ -155,7 +161,7 @@ function test_getHtmlStringFromVNode_일반VNode_HTML문자열생성() {
   const result = getHtmlStringFromVNode(vNode);
 
   // then
-  console.assert(result === '<p class="text">내용</p>', '[getHtmlStringFromVNode] HTML 문자열이 올바르게 생성되어야 한다');
+  assertTest(result === '<p class="text">내용</p>', '[getHtmlStringFromVNode] HTML 문자열이 올바르게 생성되어야 한다');
   console.log('test_getHtmlStringFromVNode_일반VNode_HTML문자열생성 완료');
 }
 
@@ -177,8 +183,8 @@ function test_pushHistory_정상추가() {
   pushHistory(vNode);
 
   // then
-  console.assert(history.length === 1, '[pushHistory] history에 1개가 추가되어야 한다');
-  console.assert(historyIdx === 0, '[pushHistory] historyIdx가 0이 되어야 한다');
+  assertTest(history.length === 1, '[pushHistory] history에 1개가 추가되어야 한다');
+  assertTest(historyIdx === 0, '[pushHistory] historyIdx가 0이 되어야 한다');
   console.log('test_pushHistory_정상추가 완료');
 }
 
@@ -204,9 +210,9 @@ function test_pushHistory_중간위치_이후이력잘림() {
   pushHistory(vNodeD);
 
   // then: C가 사라지고 A, B, D 만 남아야 한다
-  console.assert(history.length === 3, '[pushHistory] 이후 이력이 잘려 총 3개여야 한다');
-  console.assert(historyIdx === 2, '[pushHistory] historyIdx가 2여야 한다');
-  console.assert(history[2].children[0] === 'D', '[pushHistory] 마지막 이력이 D여야 한다');
+  assertTest(history.length === 3, '[pushHistory] 이후 이력이 잘려 총 3개여야 한다');
+  assertTest(historyIdx === 2, '[pushHistory] historyIdx가 2여야 한다');
+  assertTest(history[2].children[0] === 'D', '[pushHistory] 마지막 이력이 D여야 한다');
   console.log('test_pushHistory_중간위치_이후이력잘림 완료');
 }
 
@@ -229,7 +235,7 @@ function test_restoreHistory_범위밖인덱스_무시() {
   restoreHistory(99);
 
   // then: 상태가 바뀌지 않아야 한다
-  console.assert(historyIdx === prevIdx, '[restoreHistory] 범위 밖 인덱스는 무시되어야 한다');
+  assertTest(historyIdx === prevIdx, '[restoreHistory] 범위 밖 인덱스는 무시되어야 한다');
   console.log('test_restoreHistory_범위밖인덱스_무시 완료');
 }
 
@@ -243,7 +249,7 @@ function test_restoreHistory_음수인덱스_무시() {
   restoreHistory(-1);
 
   // then
-  console.assert(historyIdx === 0, '[restoreHistory] 음수 인덱스는 무시되어야 한다');
+  assertTest(historyIdx === 0, '[restoreHistory] 음수 인덱스는 무시되어야 한다');
   console.log('test_restoreHistory_음수인덱스_무시 완료');
 }
 
@@ -264,8 +270,8 @@ function test_edge_onBackClick_history비어있음_무반응() {
   onBackClick();
 
   // then: 상태 변화 없어야 한다
-  console.assert(historyIdx === -1, '[엣지] 빈 히스토리에서 뒤로가기 해도 historyIdx가 -1이어야 한다');
-  console.assert(history.length === 0, '[엣지] 빈 히스토리에서 뒤로가기 해도 history가 비어있어야 한다');
+  assertTest(historyIdx === -1, '[엣지] 빈 히스토리에서 뒤로가기 해도 historyIdx가 -1이어야 한다');
+  assertTest(history.length === 0, '[엣지] 빈 히스토리에서 뒤로가기 해도 history가 비어있어야 한다');
   console.log('test_edge_onBackClick_history비어있음_무반응 완료');
 }
 
@@ -281,7 +287,7 @@ function test_edge_onForwardClick_마지막위치_무반응() {
   onForwardClick();
 
   // then: historyIdx가 그대로여야 한다
-  console.assert(historyIdx === 1, '[엣지] 마지막 위치에서 앞으로가기 해도 historyIdx가 바뀌면 안 된다');
+  assertTest(historyIdx === 1, '[엣지] 마지막 위치에서 앞으로가기 해도 historyIdx가 바뀌면 안 된다');
   console.log('test_edge_onForwardClick_마지막위치_무반응 완료');
 }
 
@@ -296,8 +302,8 @@ function test_edge_pushHistory_연속다중추가_idx정확() {
   }
 
   // then: historyIdx가 4(마지막 인덱스)이고 history가 5개여야 한다
-  console.assert(history.length === 5, '[엣지] 5번 추가하면 history가 5개여야 한다');
-  console.assert(historyIdx === 4, '[엣지] 5번 추가하면 historyIdx가 4여야 한다');
+  assertTest(history.length === 5, '[엣지] 5번 추가하면 history가 5개여야 한다');
+  assertTest(historyIdx === 4, '[엣지] 5번 추가하면 historyIdx가 4여야 한다');
   console.log('test_edge_pushHistory_연속다중추가_idx정확 완료');
 }
 
@@ -311,7 +317,7 @@ function test_edge_getVNodeFromInput_빈문자열_null반환() {
   const result = getVNodeFromInput(emptyInput);
 
   // then: null이 반환되어야 한다 (빈 화면 처리)
-  console.assert(result === null, '[엣지] 빈 문자열은 null VNode를 반환해야 한다');
+  assertTest(result === null, '[엣지] 빈 문자열은 null VNode를 반환해야 한다');
   console.log('test_edge_getVNodeFromInput_빈문자열_null반환 완료');
 }
 
@@ -324,6 +330,6 @@ function test_edge_cloneVNode_undefined입력_undefined반환() {
   const result = cloneVNode(input);
 
   // then
-  console.assert(result === undefined, '[엣지] undefined 입력 시 undefined를 반환해야 한다');
+  assertTest(result === undefined, '[엣지] undefined 입력 시 undefined를 반환해야 한다');
   console.log('test_edge_cloneVNode_undefined입력_undefined반환 완료');
 }

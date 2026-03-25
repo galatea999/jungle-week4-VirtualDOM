@@ -297,8 +297,14 @@ function applyProps(el, oldProps, newProps) {
 
 // =============================================
 // 테스트 케이스 (5개)
-// 형식: given / when / then (console.assert 사용)
+// 형식: given / when / then (실패 시 예외 발생)
 // =============================================
+
+function assertTest(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
 
 // 테스트 1: oldNode 없음 → create 패치 생성
 function test_createPatch() {
@@ -311,10 +317,10 @@ function test_createPatch() {
   const patches = diff(oldNode, newNode, parentEl);
 
   // then
-  console.assert(patches.length === 1, '패치가 1개여야 한다');
-  console.assert(patches[0].type === 'create', '패치 타입이 create여야 한다');
-  console.assert(patches[0].parentEl === parentEl, 'parentEl이 올바르게 전달돼야 한다');
-  console.assert(patches[0].vNode === newNode, 'vNode가 newNode여야 한다');
+  assertTest(patches.length === 1, '패치가 1개여야 한다');
+  assertTest(patches[0].type === 'create', '패치 타입이 create여야 한다');
+  assertTest(patches[0].parentEl === parentEl, 'parentEl이 올바르게 전달돼야 한다');
+  assertTest(patches[0].vNode === newNode, 'vNode가 newNode여야 한다');
 }
 
 // 테스트 2: newNode 없음 → remove 패치 생성
@@ -331,9 +337,9 @@ function test_removePatch() {
   const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
-  console.assert(patches.length === 1, '패치가 1개여야 한다');
-  console.assert(patches[0].type === 'remove', '패치 타입이 remove여야 한다');
-  console.assert(patches[0].el === el, '삭제 대상 el이 정확히 일치해야 한다');
+  assertTest(patches.length === 1, '패치가 1개여야 한다');
+  assertTest(patches[0].type === 'remove', '패치 타입이 remove여야 한다');
+  assertTest(patches[0].el === el, '삭제 대상 el이 정확히 일치해야 한다');
 }
 
 // 테스트 3: 타입 다름 → replace 패치 생성
@@ -349,9 +355,9 @@ function test_replacePatch() {
   const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
-  console.assert(patches.length >= 1, '패치가 1개 이상이어야 한다');
-  console.assert(patches[0].type === 'replace', '패치 타입이 replace여야 한다');
-  console.assert(patches[0].vNode === newNode, 'vNode가 newNode여야 한다');
+  assertTest(patches.length >= 1, '패치가 1개 이상이어야 한다');
+  assertTest(patches[0].type === 'replace', '패치 타입이 replace여야 한다');
+  assertTest(patches[0].vNode === newNode, 'vNode가 newNode여야 한다');
 }
 
 // 테스트 4: 텍스트 노드 다름 → text 패치 생성
@@ -367,9 +373,9 @@ function test_textPatch() {
   const patches = diff(oldNode, newNode, parentEl, textEl);
 
   // then
-  console.assert(patches.length === 1, '패치가 1개여야 한다');
-  console.assert(patches[0].type === 'text', '패치 타입이 text여야 한다');
-  console.assert(patches[0].value === '새로운 텍스트', '변경된 텍스트 값이 올바르게 들어가야 한다');
+  assertTest(patches.length === 1, '패치가 1개여야 한다');
+  assertTest(patches[0].type === 'text', '패치 타입이 text여야 한다');
+  assertTest(patches[0].value === '새로운 텍스트', '변경된 텍스트 값이 올바르게 들어가야 한다');
 }
 
 // 테스트 5: props 다름 → props 패치 생성
@@ -386,11 +392,11 @@ function test_propsPatch() {
   const patches = diff(oldNode, newNode, parentEl, el);
 
   // then
-  console.assert(patches.length >= 1, '패치가 1개 이상이어야 한다');
+  assertTest(patches.length >= 1, '패치가 1개 이상이어야 한다');
   const propsPatch = patches.find((patch) => patch.type === 'props');
-  console.assert(propsPatch !== undefined, 'props 패치가 존재해야 한다');
-  console.assert(propsPatch.oldProps.class === 'old-class', 'oldProps가 올바르게 전달돼야 한다');
-  console.assert(propsPatch.newProps.class === 'new-class', 'newProps가 올바르게 전달돼야 한다');
+  assertTest(propsPatch !== undefined, 'props 패치가 존재해야 한다');
+  assertTest(propsPatch.oldProps.class === 'old-class', 'oldProps가 올바르게 전달돼야 한다');
+  assertTest(propsPatch.newProps.class === 'new-class', 'newProps가 올바르게 전달돼야 한다');
 }
 
 // 테스트 6: oldNode/newNode 둘 다 없음 → 빈 패치 반환
@@ -402,7 +408,7 @@ function test_emptyRootNoopPatch() {
   const patches = diff(null, null, parentEl);
 
   // then
-  console.assert(patches.length === 0, '빈 루트 diff는 패치가 없어야 한다');
+  assertTest(patches.length === 0, '빈 루트 diff는 패치가 없어야 한다');
 }
 
 // 테스트 7: 같은 텍스트 → 패치 없음
@@ -417,7 +423,7 @@ function test_sameTextNoPatch() {
   const patches = diff('변하지 않는 텍스트', '변하지 않는 텍스트', parentEl, textEl);
 
   // then
-  console.assert(patches.length === 0, '같은 텍스트는 패치가 없어야 한다');
+  assertTest(patches.length === 0, '같은 텍스트는 패치가 없어야 한다');
 }
 
 // 테스트 8: 자식이 2개일 때 두 번째 자식만 제거 → 첫 번째 자식은 살아있어야 한다
@@ -449,8 +455,8 @@ function test_removeSecondChildOnly() {
   patch(patches);
 
   // then: p는 살아있고 span만 사라져야 한다
-  console.assert(parentEl.children.length === 1, '자식이 1개만 남아야 한다');
-  console.assert(parentEl.children[0].tagName.toLowerCase() === 'p', '남은 자식이 p여야 한다');
+  assertTest(parentEl.children.length === 1, '자식이 1개만 남아야 한다');
+  assertTest(parentEl.children[0].tagName.toLowerCase() === 'p', '남은 자식이 p여야 한다');
 }
 
 
@@ -474,7 +480,7 @@ function test_edge_identicalNode_패치없음() {
   const patches = diff(oldNode, newNode, parentEl, el);
 
   // then: 아무것도 안 바뀌었으니 패치가 0개여야 한다
-  console.assert(patches.length === 0, '동일한 노드는 패치가 없어야 한다');
+  assertTest(patches.length === 0, '동일한 노드는 패치가 없어야 한다');
 }
 
 // 엣지 케이스 2: 자식이 추가되는 경우 → create 패치가 생겨야 한다
@@ -502,8 +508,8 @@ function test_edge_childAdded_createPatch생성() {
 
   // then: 새 자식에 대한 create 패치가 있어야 한다
   const createPatch = patches.find(function (p) { return p.type === 'create'; });
-  console.assert(createPatch !== undefined, '새 자식에 대한 create 패치가 있어야 한다');
-  console.assert(createPatch.vNode.type === 'span', 'create 패치의 vNode가 span이어야 한다');
+  assertTest(createPatch !== undefined, '새 자식에 대한 create 패치가 있어야 한다');
+  assertTest(createPatch.vNode.type === 'span', 'create 패치의 vNode가 span이어야 한다');
 }
 
 // 엣지 케이스 3: 3단계 깊이 중첩된 VNode → 재귀가 끝까지 내려가야 한다
@@ -538,6 +544,6 @@ function test_edge_deepNested_재귀탐색() {
 
   // then: 깊은 곳의 텍스트 변경이 text 패치로 잡혀야 한다
   const textPatch = patches.find(function (p) { return p.type === 'text'; });
-  console.assert(textPatch !== undefined, '3단계 깊이의 텍스트 변경이 감지되어야 한다');
-  console.assert(textPatch.value === '이후', 'text 패치의 값이 "이후"여야 한다');
+  assertTest(textPatch !== undefined, '3단계 깊이의 텍스트 변경이 감지되어야 한다');
+  assertTest(textPatch.value === '이후', 'text 패치의 값이 "이후"여야 한다');
 }
