@@ -112,7 +112,7 @@
       border-bottom: 1px solid #bdc3c7;
     }
 
-    /* 왼쪽: 실제 DOM 결과 영역 (읽기 전용) */
+    /* 실제 DOM 결과 영역 (읽기 전용) */
     #real-area {
       flex: 1;
       padding: 16px;
@@ -120,7 +120,7 @@
       background: #fff;
     }
 
-    /* 오른쪽: 사용자 HTML 직접 수정 textarea */
+    /* 사용자 HTML 직접 수정 textarea */
     #test-area {
       flex: 1;
       padding: 16px;
@@ -174,16 +174,16 @@
   <!-- 좌우 2단 패널 -->
   <div class="panels">
 
-    <!-- 왼쪽: patch 결과 반영 (읽기 전용) -->
-    <div class="panel">
-      <div class="panel-header">실제 DOM (patch 결과)</div>
-      <div id="real-area"></div>
-    </div>
-
-    <!-- 오른쪽: 사용자가 HTML 직접 수정 -->
+    <!-- 왼쪽: 사용자가 HTML 직접 수정 -->
     <div class="panel">
       <div class="panel-header">테스트 영역 (직접 수정)</div>
       <textarea id="test-area" placeholder="여기에 HTML을 직접 입력하세요..."></textarea>
+    </div>
+
+    <!-- 오른쪽: patch 결과 반영 (읽기 전용) -->
+    <div class="panel">
+      <div class="panel-header">실제 DOM (patch 결과)</div>
+      <div id="real-area"></div>
     </div>
 
   </div>
