@@ -530,6 +530,239 @@ function updatePatchPanel(patches) {
   });
 }
 
+function updatePatchLogPanel(logs) {
+  const area = document.getElementById('patch-area');
+
+  if (!area) {
+    return;
+  }
+
+  while (area.firstChild) {
+    area.removeChild(area.firstChild);
+  }
+
+  if (!logs || logs.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'panel-empty';
+    empty.textContent = '테스트 로그가 없습니다.';
+    area.appendChild(empty);
+    return;
+  }
+
+  logs.forEach(function (log) {
+    const item = document.createElement('div');
+    item.className = 'patch-item patch-type-' + log.type;
+
+    const badge = document.createElement('span');
+    badge.className = 'patch-badge';
+    badge.textContent = log.label;
+    item.appendChild(badge);
+
+    const detail = document.createElement('span');
+    detail.className = 'patch-detail';
+    detail.textContent = log.detail;
+    item.appendChild(detail);
+
+    area.appendChild(item);
+  });
+}
+
+function cloneGameStateSnapshot(snapshot) {
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    levelIdx: snapshot.levelIdx,
+    exp: snapshot.exp,
+    gold: snapshot.gold
+  };
+}
+
+function captureAppSnapshot() {
+  const testArea = document.getElementById('test-area');
+
+  return {
+    history: JSON.parse(JSON.stringify(history)),
+    historyIdx: historyIdx,
+    currentVNode: cloneVNode(currentVNode),
+    gameState: cloneGameStateSnapshot(getGameState()),
+    isPendingPatch: isPendingPatch,
+    gameStateSnapshot: cloneGameStateSnapshot(gameStateSnapshot),
+    htmlText: testArea ? testArea.value : ''
+  };
+}
+
+function restoreAppSnapshot(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+
+  history = JSON.parse(JSON.stringify(snapshot.history));
+  historyIdx = snapshot.historyIdx;
+  currentVNode = cloneVNode(snapshot.currentVNode);
+  restoreGameState(snapshot.gameState);
+  isPendingPatch = snapshot.isPendingPatch;
+  gameStateSnapshot = cloneGameStateSnapshot(snapshot.gameStateSnapshot);
+
+  const testArea = document.getElementById('test-area');
+  if (testArea) {
+    testArea.value = snapshot.htmlText;
+  }
+
+  renderVNodeToRealArea(currentVNode);
+  updateVDomPanel(currentVNode);
+  renderHistory();
+}
+
+function getWhiteBoxTestSections() {
+  return [
+    {
+      title: 'vdom.js',
+      tests: [
+        test_domToVNode_텍스트노드_문자열반환,
+        test_domToVNode_공백텍스트노드_null반환,
+        test_domToVNode_주석노드_null반환,
+        test_domToVNode_엘리먼트_VNode구조반환,
+        test_domToVNode_속성있는엘리먼트_props수집,
+        test_domToVNode_자식있는엘리먼트_children재귀변환,
+        test_createNode_문자열입력_텍스트노드생성,
+        test_createNode_VNode_태그생성,
+        test_createNode_props있음_속성설정,
+        test_createNode_children있음_자식생성,
+        test_domToVNode_createNode_왕복변환,
+        test_edge_domToVNode_속성없는엘리먼트_빈props,
+        test_edge_createNode_빈children_자식없음,
+        test_edge_domToVNode_공백섞인텍스트_trim후반환,
+        test_edge_createNode_자식여러개_순서보장
+      ]
+    },
+    {
+      title: 'diff.js',
+      tests: [
+        test_createPatch,
+        test_removePatch,
+        test_replacePatch,
+        test_textPatch,
+        test_propsPatch,
+        test_emptyRootNoopPatch,
+        test_sameTextNoPatch,
+        test_removeSecondChildOnly,
+        test_edge_identicalNode_패치없음,
+        test_edge_childAdded_createPatch생성,
+        test_edge_deepNested_재귀탐색
+      ]
+    },
+    {
+      title: 'app.js',
+      tests: [
+        test_cloneVNode_null입력_null반환,
+        test_cloneVNode_깊은복사_원본불변,
+        test_escapeHtml_특수문자이스케이프,
+        test_getHtmlStringFromVNode_null입력_빈문자열,
+        test_getHtmlStringFromVNode_문자열_이스케이프,
+        test_getHtmlStringFromVNode_false속성_제외,
+        test_getHtmlStringFromVNode_true속성_속성명만출력,
+        test_getHtmlStringFromVNode_일반VNode_HTML문자열생성,
+        test_pushHistory_정상추가,
+        test_pushHistory_중간위치_이후이력잘림,
+        test_restoreHistory_범위밖인덱스_무시,
+        test_restoreHistory_음수인덱스_무시,
+        test_edge_onBackClick_history비어있음_무반응,
+        test_edge_onForwardClick_마지막위치_무반응,
+        test_edge_pushHistory_연속다중추가_idx정확,
+        test_edge_getVNodeFromInput_빈문자열_null반환,
+        test_edge_cloneVNode_undefined입력_undefined반환
+      ]
+    }
+  ];
+}
+
+function buildTestSummaryLogs(passCount, totalCount) {
+  if (passCount === totalCount) {
+    return [{
+      type: 'create',
+      label: 'SUMMARY',
+      detail: '전체 통과 ' + passCount + ' / ' + totalCount
+    }];
+  }
+
+  return [{
+    type: 'remove',
+    label: 'SUMMARY',
+    detail: '실패 ' + (totalCount - passCount) + '개, 통과 ' + passCount + ' / ' + totalCount
+  }];
+}
+
+function setRunTestsButtonState(isRunning) {
+  const button = document.getElementById('btn-run-tests');
+
+  if (!button) {
+    return;
+  }
+
+  button.disabled = isRunning;
+  button.textContent = isRunning ? '🧪 테스트 중...' : '🧪 테스트하기';
+}
+
+function waitForUi(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function onRunTestsClick() {
+  const snapshot = captureAppSnapshot();
+  const sections = getWhiteBoxTestSections();
+  const logs = [];
+  let passCount = 0;
+  let totalCount = 0;
+
+  setRunTestsButtonState(true);
+
+  try {
+    for (let sectionIdx = 0; sectionIdx < sections.length; sectionIdx++) {
+      const section = sections[sectionIdx];
+
+      logs.push({
+        type: 'props',
+        label: 'SUITE',
+        detail: section.title
+      });
+      updatePatchLogPanel(logs);
+      await waitForUi(20);
+
+      for (let testIdx = 0; testIdx < section.tests.length; testIdx++) {
+        const testFn = section.tests[testIdx];
+        totalCount++;
+
+        try {
+          testFn();
+          passCount++;
+          logs.push({
+            type: 'create',
+            label: 'PASS',
+            detail: testFn.name
+          });
+        } catch (error) {
+          logs.push({
+            type: 'remove',
+            label: 'FAIL',
+            detail: testFn.name + ' — ' + error.message
+          });
+          console.error('테스트 실패', error);
+        }
+        updatePatchLogPanel(logs);
+        await waitForUi(20);
+      }
+    }
+  } finally {
+    restoreAppSnapshot(snapshot);
+    updatePatchLogPanel(logs.concat(buildTestSummaryLogs(passCount, totalCount)));
+    setRunTestsButtonState(false);
+  }
+}
+
 function initializeApp() {
   const testArea = document.getElementById('test-area');
 
