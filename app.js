@@ -8,9 +8,13 @@
 let history = [];       // VNode 스냅샷 배열
 let historyIdx = -1;    // 현재 위치 인덱스
 let currentVNode = null;
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
-function pushHistory(vNode) {
-  const snapshot = cloneVNode(vNode);
+function pushHistory(vNode, htmlText) {
+  const snapshot = {
+    vNode: cloneVNode(vNode),
+    htmlText: htmlText
+  };
 
   if (historyIdx < history.length - 1) {
     history = history.slice(0, historyIdx + 1);
@@ -69,6 +73,10 @@ function getHtmlStringFromVNode(vNode) {
     .join('');
 
   const openTag = props ? '<' + vNode.type + ' ' + props + '>' : '<' + vNode.type + '>';
+
+  if (VOID_TAGS.has(vNode.type)) {
+    return openTag;
+  }
 
   return openTag + children + '</' + vNode.type + '>';
 }
@@ -187,17 +195,33 @@ function restoreHistory(targetIdx) {
   }
 
   try {
-    const restoredVNode = cloneVNode(history[targetIdx]);
+    const restoredEntry = history[targetIdx];
+    const restoredVNode = cloneVNode(restoredEntry.vNode);
 
     renderVNodeToRealArea(restoredVNode);
     currentVNode = restoredVNode;
     historyIdx = targetIdx;
 
-    syncTestArea(restoredVNode);
+    syncTestAreaFromHistory(restoredEntry);
     renderHistory();
   } catch (error) {
     console.error('히스토리 복원 중 오류', error);
   }
+}
+
+function syncTestAreaFromHistory(historyEntry) {
+  const testArea = document.getElementById('test-area');
+
+  if (!testArea) {
+    return;
+  }
+
+  if (historyEntry && typeof historyEntry.htmlText === 'string') {
+    testArea.value = historyEntry.htmlText;
+    return;
+  }
+
+  syncTestArea(historyEntry ? historyEntry.vNode : null);
 }
 
 function initializeApp() {
@@ -216,8 +240,7 @@ function initializeApp() {
 
     currentVNode = cloneVNode(initialVNode);
     renderVNodeToRealArea(currentVNode);
-    syncTestArea(currentVNode);
-    pushHistory(currentVNode);
+    pushHistory(currentVNode, testArea.value);
   } catch (error) {
     console.error('초기 렌더링 중 오류', error);
   }
@@ -249,8 +272,7 @@ function onPatchClick() {
 
     patch(patches);
     currentVNode = cloneVNode(newVNode);
-    pushHistory(currentVNode);
-    syncTestArea(currentVNode);
+    pushHistory(currentVNode, testArea.value);
     renderHistory();
   } catch (error) {
     console.error('패치 적용 중 오류', error);
