@@ -14,9 +14,9 @@ DOM 객체를 Virtual DOM 형태로 표현하고, Diff 알고리즘으로 변경
 
 | 파트 | 담당 | 내용 |
 |------|------|------|
-| A — V-DOM 레이어 | 은지 | createVNode, createElement 등 V-DOM 생성 함수 구현 |
+| A — V-DOM 레이어 | 은재 | createVNode, createElement 등 V-DOM 생성 함수 구현 |
 | B — Diff/Patch 레이어 | **정환 (나)** | diff 알고리즘, patch 함수 구현 |
-| C — App 레이어 | 세희 | UI 통합, state history, 버튼 이벤트 연결 |
+| C — App 레이어 | 세인 | UI 통합, state history, 버튼 이벤트 연결 |
 
 사전 조사 단계에서 Virtual DOM 전체 플로우(DOM 트리 구조, Diff 알고리즘 5케이스, 히스토리 저장 방식, 재귀 탐색 원리)를 팀에 정리·공유해 Stub 코드 인터페이스 설계의 기반을 잡았습니다.
 
